@@ -69,10 +69,16 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
     fun push(type: String, title: String, arg: String = "") { routes += Route(type, title, arg) }
     fun back() { if (routes.size > 1) routes.removeAt(routes.lastIndex) }
     BackHandler(routes.size > 1) { back() }
+    // "drive" con arg "root" è l'elenco delle cartelle musicali scelte; con un ID cartella è la navigazione al suo interno.
+    // "drivepick" naviga tutto Drive soltanto per scegliere una cartella da aggiungere.
+    val driveList = route.type == "drive" && route.arg.isBlank() || route.type == "drive" && route.arg == "root"
+    val driveBrowse = route.type == "drive" && !driveList
+    val drivePick = route.type == "drivepick"
+    val driveLoading = driveBrowse || drivePick
     LaunchedEffect(route.type, route.arg, query, settings.driveEmail) {
-        if (route.type == "drive" && settings.driveEmail.isNotBlank()) {
+        if (driveLoading && settings.driveEmail.isNotBlank()) {
             if (query.isNotBlank()) delay(350)
-            vm.loadDrive(route.arg.ifBlank { "root" }, query, route.title)
+            vm.loadDrive(route.arg.ifBlank { "root" }, query, route.title, pick = drivePick)
         }
     }
     val sorted = remember(tracks, settings.sort) { when(settings.sort) {
@@ -132,7 +138,11 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             "${playlistEntries.count { it.playlistId == p.id }} brani") { push("playlist", p.name, p.id.toString()) } }
         "playlist" -> songs(playlistEntries.filter { it.playlistId.toString() == route.arg }.mapNotNull { entry -> tracks.find { it.id == entry.trackId } })
         "drive" -> if (settings.driveEmail.isBlank()) listOf(Entry("Collega Google Drive", Icons.Rounded.AddToDrive, "Accedi al tuo account Google", Color(0xFF48B974)) { connectDrive() })
-            else driveFiles.map { f -> Entry(f.name, if (f.folder) Icons.Rounded.Folder else Icons.Rounded.MusicNote,
+            else if (driveList) {
+                if (settings.driveFolders.isEmpty()) listOf(Entry("Scegli cartelle musicali", Icons.Rounded.CreateNewFolder, "Nessuna cartella selezionata", Color(0xFF48B974)) { push("drivepick", "Scegli cartella", "root") })
+                else settings.driveFolders.map { f -> Entry(f.name, Icons.Rounded.Folder, "Cartella") { push("drive", f.name, f.id) } } +
+                    Entry("Gestisci cartelle", Icons.Rounded.Settings) { push("drivemanage", "Gestisci cartelle") }
+            } else driveFiles.map { f -> Entry(f.name, if (f.folder) Icons.Rounded.Folder else Icons.Rounded.MusicNote,
                 if (f.folder) "Cartella" else "Google Drive", track = if (f.folder) null else tracks.find { it.id == "drive:${f.id}" }) {
                 if (f.folder) push("drive", f.name, f.id)
                 else {
@@ -140,6 +150,13 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
                     folderTracks.find { it.id == "drive:${f.id}" }?.let { play(folderTracks, it) }
                 }
             } }
+        "drivepick" -> (if (route.arg == "root" || route.arg.isBlank()) emptyList<Entry>()
+            else listOf(Entry("Usa questa cartella", Icons.Rounded.Check, route.title, Color(0xFF48B974)) {
+                vm.addDriveFolder(DriveFolder(route.arg, route.title))
+                while (routes.size > 1 && routes.last().type == "drivepick") routes.removeAt(routes.lastIndex)
+            })) + driveFiles.filter { it.folder }.map { f -> Entry(f.name, Icons.Rounded.Folder, "Apri") { push("drivepick", f.name, f.id) } }
+        "drivemanage" -> listOf(Entry("Aggiungi cartella", Icons.Rounded.CreateNewFolder) { push("drivepick", "Scegli cartella", "root") }) +
+            settings.driveFolders.map { f -> Entry(f.name, Icons.Rounded.Delete, "Tocca per rimuovere dall’elenco") { vm.removeDriveFolder(f.id) } }
         "spotify" -> listOf(
             Entry("Apri app Spotify", Icons.Rounded.OpenInNew, "Riproduzione nell’app ufficiale", Color(0xFF1ED760)) { launchSpotify(true) },
             Entry("Apri Spotify nel browser", Icons.Rounded.Language, "Accesso tramite browser sicuro") { launchSpotify(false) },
@@ -195,22 +212,22 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
                         }
                         "playing" -> NowPlaying(playing, current?.favorite == true, scale, vm, { current?.let { vm.favorite(it.id) } }, { push("queue", "Coda di riproduzione") }, { current?.let { songOptions = it } })
                         else -> {
-                            if (route.type == "search" || (route.type == "drive" && settings.driveEmail.isNotBlank())) {
-                                TextField(query, { query = it; selected = 0 }, placeholder = { Text(if (route.type == "drive") "Cerca in Drive" else "Brani, album, artisti", fontSize = (12 * scale).sp) },
+                            if (route.type == "search" || (driveBrowse && settings.driveEmail.isNotBlank())) {
+                                TextField(query, { query = it; selected = 0 }, placeholder = { Text(if (route.type == "drive") "Cerca in questa cartella" else "Brani, album, artisti", fontSize = (12 * scale).sp) },
                                     leadingIcon = { Icon(Icons.Rounded.Search, null, Modifier.size(18.dp)) }, singleLine = true,
                                     textStyle = LocalTextStyle.current.copy(fontSize = (13 * scale).sp), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp))
                             }
                             if (route.type == "playlist") {
                                 Text("Elimina playlist", color = Muted, fontSize = (11 * scale).sp, modifier = Modifier.fillMaxWidth().clickable { deletePlaylist = playlists.find { it.id.toString() == route.arg } }.padding(8.dp * scale))
                             }
-                            if (driveBusy && route.type == "drive") LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
-                            if (driveError != null && route.type == "drive") {
+                            if (driveBusy && driveLoading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
+                            if (driveError != null && driveLoading) {
                                 Column(Modifier.weight(1f).padding(12.dp), verticalArrangement = Arrangement.Center) {
                                     Text(driveError!!, color = Ice, fontSize = (13 * scale).sp)
                                     TextButton(onClick = { vm.loadDrive(route.arg.ifBlank { "root" }, query, route.title) }) { Text("Riprova") }
                                     TextButton(onClick = connectDrive) { Text("Ricollega Google") }
                                 }
-                            } else if (entries.isEmpty() && !driveBusy) {
+                            } else if (entries.isEmpty() && !(driveBusy && driveLoading)) {
                                 EmptyScreen(when(route.type) { "search" -> if(query.isBlank()) "Cerca nella tua libreria" else "Nessun risultato"; "drive" -> "Nessun file audio in questa cartella"; "tracks" -> "La tua musica inizia qui"; else -> "Nessun brano da mostrare" },
                                     if(route.type == "tracks") "Autorizza l’accesso alla musica e avvia una scansione." else "Aggiungi musica o esplora un’altra sezione.", scale, Modifier.weight(1f), if(route.type == "tracks") requestAudio else null)
                             } else {

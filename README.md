@@ -66,7 +66,9 @@ Questa app usa **Google Identity Services `AuthorizationClient`** e Drive REST A
    ```
 
 7. Attendi la propagazione della configurazione; sul telefono con Google Play Services aggiornati apri **Google Drive → Collega Google Drive** e scegli l’account test autorizzato.
-8. Naviga nelle cartelle e seleziona un file audio. La coda comprende i file audio della cartella aperta (non attraversa ricorsivamente le sottocartelle). La ricerca Drive cerca per nome in tutti i file audio e le cartelle accessibili nell’unità dell’utente.
+8. Al primo accesso **Google Drive** mostra «Scegli cartelle musicali»: sfoglia Drive e premi **Usa questa cartella** nelle cartelle con le canzoni. Da quel momento il menu Drive elenca soltanto le cartelle scelte (e le loro sottocartelle); **Gestisci cartelle** permette di aggiungerne o rimuoverne. Seleziona un file audio per riprodurlo. La coda comprende i file audio della cartella aperta (non attraversa ricorsivamente le sottocartelle). La ricerca cerca per nome soltanto nella cartella aperta.
+
+**Limite importante:** la scelta delle cartelle è una restrizione dell’app, non di Google. Il consenso OAuth resta `drive.readonly` su tutto l’account, perché Google non offre uno scope limitato a cartelle scelte e `drive.file` non consente di leggere il contenuto di cartelle preesistenti. Durante la scelta l’app elenca i nomi delle cartelle del tuo Drive; non salva né riproduce brani fuori dalle cartelle scelte. Per un isolamento reale, usa un account Google dedicato o una cartella condivisa con quell’account.
 
 Se ricompili con una chiave diversa devi registrare il nuovo SHA-1, ottenibile con:
 

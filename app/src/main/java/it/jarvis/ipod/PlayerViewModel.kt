@@ -93,18 +93,30 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (scanning.value) return
         launch { scanning.value = true; try { message.value = "${graph.local.scan()} brani trovati" } finally { scanning.value = false } }
     }
-    fun loadDrive(id: String, query: String = "", title: String = "Google Drive") {
+    /** [pick] = scelta delle cartelle: elenca solo sottocartelle e non salva alcun brano nella libreria. */
+    fun loadDrive(id: String, query: String = "", title: String = "Google Drive", pick: Boolean = false) {
         driveJob?.cancel()
         driveJob = launch {
             driveBusy.value = true; driveError.value = null; driveFiles.value = emptyList()
             try {
-                val files = graph.drive.list(id, query)
-                graph.drive.remember(files, title)
+                val files = graph.drive.list(id, query, foldersOnly = pick)
+                if (!pick) graph.drive.remember(files, title)
                 driveFiles.value = files
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { driveError.value = e.localizedMessage ?: "Connessione Drive non disponibile" }
             finally { driveBusy.value = false }
         }
+    }
+    fun addDriveFolder(folder: DriveFolder) = launch {
+        val current = settings.value.driveFolders
+        if (current.none { it.id == folder.id }) {
+            graph.preferences.set(Preferences.driveFolders, Preferences.encodeFolders(current + folder))
+        }
+        message.value = "Cartella aggiunta: ${folder.name}"
+    }
+    fun removeDriveFolder(id: String) = launch {
+        graph.preferences.set(Preferences.driveFolders, Preferences.encodeFolders(settings.value.driveFolders.filter { it.id != id }))
+        message.value = "Cartella rimossa dall’elenco"
     }
     fun driveConnected() = launch {
         val email = graph.drive.accountEmail()

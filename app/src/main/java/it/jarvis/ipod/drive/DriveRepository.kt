@@ -41,14 +41,21 @@ class DriveRepository(private val context: Context, private val auth: DriveAuth,
         val url = "https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)"
         return JSONObject(get(url)).getJSONObject("user").getString("emailAddress")
     }
-    suspend fun list(folderId: String, search: String = ""): List<DriveFile> {
+    /**
+     * Elenca il contenuto di una sola cartella. La ricerca resta dentro la cartella aperta (nessuna ricerca
+     * su tutto Drive). Con [foldersOnly] restituisce solo sottocartelle: serve alla scelta delle cartelle musicali.
+     */
+    suspend fun list(folderId: String, search: String = "", foldersOnly: Boolean = false): List<DriveFile> {
         fun escape(value: String) = value.replace("\\", "\\\\").replace("'", "\\'")
-        val query = if (search.isBlank()) "'${escape(folderId)}' in parents" else "name contains '${escape(search)}'"
+        val parent = "'${escape(folderId)}' in parents"
+        val query = if (search.isBlank()) parent else "$parent and name contains '${escape(search)}'"
+        val types = if (foldersOnly) "mimeType = 'application/vnd.google-apps.folder'"
+            else "mimeType = 'application/vnd.google-apps.folder' or mimeType contains 'audio/' or mimeType = 'application/ogg'"
         val files = mutableListOf<DriveFile>()
         var page: String? = null
         do {
             val url = "https://www.googleapis.com/drive/v3/files".toHttpUrl().newBuilder()
-                .addQueryParameter("q", "trashed = false and ($query) and (mimeType = 'application/vnd.google-apps.folder' or mimeType contains 'audio/' or mimeType = 'application/ogg')")
+                .addQueryParameter("q", "trashed = false and ($query) and ($types)")
                 .addQueryParameter("fields", "nextPageToken,files(id,name,mimeType,capabilities(canDownload))")
                 .addQueryParameter("pageSize", "1000").addQueryParameter("orderBy", "folder,name_natural")
                 .addQueryParameter("supportsAllDrives", "true").addQueryParameter("includeItemsFromAllDrives", "true")
