@@ -136,3 +136,16 @@ Senza queste variabili `assembleRelease` produce un APK **non firmato**, non ins
 I risultati effettivi, le immagini dell’emulatore e le verifiche ancora necessarie sono riportati in [docs/VERIFICA.md](docs/VERIFICA.md). Non sono inclusi dati, musica commerciale, account o credenziali di test.
 
 L’aspetto è ottimizzato per un display verticale con proporzioni del Pixel 9 Pro XL. Scocca e ruota si riducono proporzionalmente su schermi piccoli o orizzontali; il display rispetta gli inset del sistema. Test su Pixel fisico, Bluetooth, chiamate e politiche energetiche dei diversi produttori rimangono necessari.
+
+
+## Drive senza account: chiave API e cartelle condivise
+
+In alternativa a OAuth, dal menu *Impostazioni → Drive con chiave API* (o *Google Drive → Usa chiave API…*) si può leggere soltanto ciò che è condiviso con «Chiunque abbia il link».
+
+1. Abilita la Drive API: https://console.cloud.google.com/apis/library/drive.googleapis.com
+2. Crea una chiave API nello stesso progetto: https://console.cloud.google.com/apis/credentials (limitala alla sola Drive API; una restrizione «app Android» fa rifiutare le richieste).
+3. Incolla la chiave nell'app. Resta solo nello spazio privato del telefono (`allowBackup=false`) e non viene committata.
+4. Su Drive condividi la cartella con «Chiunque abbia il link» (Visualizzatore) e incolla il link nell'app. I link con `resourcekey` sono gestiti tramite l'header `X-Goog-Drive-Resource-Keys`.
+5. *Verifica collegamento* elenca la prima cartella usando soltanto la chiave.
+
+Se è collegato anche un account Google, l'app usa l'account. Non verificato con un Drive reale: la lettura di file condivisi con chiave API segue il comportamento documentato delle API Google, ma l'esito va controllato con *Verifica collegamento*.

@@ -19,7 +19,7 @@ class JarvisApp : Application() {
     val dao get() = database.dao()
     val preferences by lazy { Preferences(this) }
     val auth by lazy { DriveAuth(this, preferences) }
-    val drive by lazy { DriveRepository(this, auth, dao) }
+    val drive by lazy { DriveRepository(this, auth, dao, preferences) }
     val local by lazy { LocalLibrary(this, dao) }
     val cacheEvictor by lazy { LeastRecentlyUsedCacheEvictor(256L * 1024 * 1024) }
     val audioCache by lazy { SimpleCache(File(cacheDir, "stream"), cacheEvictor, StandaloneDatabaseProvider(this)) }

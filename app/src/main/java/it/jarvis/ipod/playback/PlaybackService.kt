@@ -43,8 +43,11 @@ class PlaybackService : MediaSessionService() {
                 val track = graph.dao.track("drive:$id")
                 val offline = track?.offlinePath?.let(::File)?.takeIf { it.exists() }
                 if (offline != null) spec.withUri(Uri.fromFile(offline))
-                else spec.withUri(Uri.parse("https://www.googleapis.com/drive/v3/files/$id?alt=media&supportsAllDrives=true"))
-                    .withRequestHeaders(spec.httpRequestHeaders + ("Authorization" to "Bearer ${graph.auth.accessToken()}"))
+                else {
+                    // OAuth: bearer; senza account: chiave API (e resource key) scelte dal repository.
+                    val (url, headers) = graph.drive.streamRequest(id)
+                    spec.withUri(Uri.parse(url)).withRequestHeaders(spec.httpRequestHeaders + headers)
+                }
             }
         }
         // Resolve first, then dispatch the resulting URI to HTTP or the private offline file reader.

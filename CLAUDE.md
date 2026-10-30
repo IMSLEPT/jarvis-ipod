@@ -69,6 +69,10 @@ La consegna iniziale del 28 ottobre 2026 ha superato build, 6 test JVM, Lint (0 
 
 Accesso reale, consenso, cartelle remote, streaming e download con un account Google non sono stati verificati. Il test `drive://` offline non prova OAuth o rete. I metadati cloud attuali derivano dal nome del file e dalla cartella; non vengono estratti ID3/copertine remote. I download richiedono il processo attivo e non sono job WorkManager persistenti.
 
+### Drive con chiave API (nov 2026)
+
+`DriveRepository.prepare()` sceglie OAuth (se `driveEmail` è impostata) oppure chiave API (`Preferences.apiKey`, query `key=`) più header `X-Goog-Drive-Resource-Keys`. Le cartelle condivise sono salvate come JSON in `Preferences.folders` (`drive/DriveLinks.kt`, con test JVM). Nello streaming il resolver usa `DriveRepository.streamRequest()`. La chiave non va mai committata né loggata. Non verificato con un Drive reale; i resource key dei file figli sono tenuti solo in memoria.
+
 ## Spotify
 
 Si apre l’app ufficiale o una Custom Tab del browser. Login e ascolto con un account reale non sono stati verificati. Non esiste riproduzione WebView dichiarata funzionante, non è incluso App Remote e la ruota non controlla Spotify. Conservare MENU per uscire dalla sezione e usare solo integrazioni ufficiali; nessuno scraping o aggiramento DRM/autenticazione.

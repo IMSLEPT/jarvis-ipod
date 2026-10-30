@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.jarvis.ipod.*
 import it.jarvis.ipod.data.*
+import it.jarvis.ipod.drive.DriveFolder
+import it.jarvis.ipod.drive.DriveLinks
 import kotlinx.coroutines.delay
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -64,13 +66,20 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
     var playlistName by remember { mutableStateOf("") }
     var deletePlaylist by remember { mutableStateOf<Playlist?>(null) }
     var info by remember { mutableStateOf<String?>(null) }
+    var keyDialog by remember { mutableStateOf(false) }
+    var keyText by remember { mutableStateOf("") }
+    var folderDialog by remember { mutableStateOf(false) }
+    var folderText by remember { mutableStateOf("") }
+    var removeFolder by remember { mutableStateOf<DriveFolder?>(null) }
+    val keyMode = settings.driveEmail.isBlank() && settings.apiKey.isNotBlank()
+    val savedFolders = remember(settings.folders) { DriveLinks.decode(settings.folders) }
     val context = LocalContext.current
     val view = LocalView.current
     fun push(type: String, title: String, arg: String = "") { routes += Route(type, title, arg) }
     fun back() { if (routes.size > 1) routes.removeAt(routes.lastIndex) }
     BackHandler(routes.size > 1) { back() }
-    LaunchedEffect(route.type, route.arg, query, settings.driveEmail) {
-        if (route.type == "drive" && settings.driveEmail.isNotBlank()) {
+    LaunchedEffect(route.type, route.arg, query, settings.driveEmail, settings.apiKey) {
+        if (route.type == "drive" && (settings.driveEmail.isNotBlank() || keyMode)) {
             if (query.isNotBlank()) delay(350)
             vm.loadDrive(route.arg.ifBlank { "root" }, query, route.title)
         }
@@ -97,6 +106,19 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             } else CustomTabsIntent.Builder().setShowTitle(false).build().launchUrl(context, Uri.parse("https://open.spotify.com"))
         } catch (e: Exception) { vm.message.value = "Nessuna app o browser disponibile per aprire Spotify." }
     }
+    fun openUrl(url: String) {
+        try { CustomTabsIntent.Builder().setShowTitle(false).build().launchUrl(context, Uri.parse(url)) }
+        catch (e: Exception) { vm.message.value = "Nessun browser disponibile per aprire il link." }
+    }
+    val maskedKey = if (settings.apiKey.isBlank()) "Non impostata" else settings.apiKey.take(4) + "…" + settings.apiKey.takeLast(4)
+    val driveItems = driveFiles.map { f -> Entry(f.name, if (f.folder) Icons.Rounded.Folder else Icons.Rounded.MusicNote,
+        if (f.folder) "Cartella" else "Google Drive", track = if (f.folder) null else tracks.find { it.id == "drive:${f.id}" }) {
+        if (f.folder) push("drive", f.name, f.id)
+        else {
+            val folderTracks = driveFiles.filter { !it.folder }.mapNotNull { file -> tracks.find { it.id == "drive:${file.id}" } }
+            folderTracks.find { it.id == "drive:${f.id}" }?.let { play(folderTracks, it) }
+        }
+    } }
     val home = listOf(
         Entry("Musica locale", Icons.Rounded.MusicNote, color = Blue) { push("library", "Libreria"); requestAudio() },
         Entry("Google Drive", Icons.Rounded.AddToDrive, color = Color(0xFF34A853)) { push("drive", "Google Drive", "root") },
@@ -131,15 +153,27 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
         "playlists" -> listOf(Entry("Nuova playlist", Icons.Rounded.Add) { newPlaylist = true }) + playlists.map { p -> Entry(p.name, Icons.Rounded.QueueMusic,
             "${playlistEntries.count { it.playlistId == p.id }} brani") { push("playlist", p.name, p.id.toString()) } }
         "playlist" -> songs(playlistEntries.filter { it.playlistId.toString() == route.arg }.mapNotNull { entry -> tracks.find { it.id == entry.trackId } })
-        "drive" -> if (settings.driveEmail.isBlank()) listOf(Entry("Collega Google Drive", Icons.Rounded.AddToDrive, "Accedi al tuo account Google", Color(0xFF48B974)) { connectDrive() })
-            else driveFiles.map { f -> Entry(f.name, if (f.folder) Icons.Rounded.Folder else Icons.Rounded.MusicNote,
-                if (f.folder) "Cartella" else "Google Drive", track = if (f.folder) null else tracks.find { it.id == "drive:${f.id}" }) {
-                if (f.folder) push("drive", f.name, f.id)
-                else {
-                    val folderTracks = driveFiles.filter { !it.folder }.mapNotNull { file -> tracks.find { it.id == "drive:${file.id}" } }
-                    folderTracks.find { it.id == "drive:${f.id}" }?.let { play(folderTracks, it) }
-                }
-            } }
+        "drive" -> when {
+            settings.driveEmail.isNotBlank() -> driveItems
+            keyMode && route.arg.ifBlank { "root" } == "root" ->
+                savedFolders.map { f -> Entry(f.name, Icons.Rounded.Folder, "Cartella condivisa") { push("drive", f.name, f.id) } } +
+                    Entry("Chiave API e cartelle", Icons.Rounded.VpnKey, "${savedFolders.size} cartelle salvate") { push("driveapi", "Drive con chiave API") }
+            keyMode -> driveItems
+            else -> listOf(
+                Entry("Collega Google Drive", Icons.Rounded.AddToDrive, "Accedi al tuo account Google", Color(0xFF48B974)) { connectDrive() },
+                Entry("Usa chiave API e cartelle condivise", Icons.Rounded.VpnKey, "Senza account: solo cartelle con link", Color(0xFF48B974)) { push("driveapi", "Drive con chiave API") }
+            )
+        }
+        "driveapi" -> listOf(
+            Entry("1 · Abilita Drive API", Icons.Rounded.OpenInNew, "Apre Google Cloud: premi Abilita") { openUrl("https://console.cloud.google.com/apis/library/drive.googleapis.com") },
+            Entry("2 · Crea chiave API", Icons.Rounded.OpenInNew, "Crea credenziali → Chiave API") { openUrl("https://console.cloud.google.com/apis/credentials") },
+            Entry("3 · Incolla chiave API", Icons.Rounded.VpnKey, maskedKey) { keyText = ""; keyDialog = true },
+            Entry("4 · Aggiungi cartella condivisa", Icons.Rounded.Link, "Incolla il link della cartella Drive") { folderText = ""; folderDialog = true }
+        ) + savedFolders.map { f -> Entry(f.name, Icons.Rounded.Folder, "Tocca per rimuovere") { removeFolder = f } } + listOf(
+            Entry("Verifica collegamento", Icons.Rounded.CheckCircle, "Prova reale con chiave e prima cartella") { vm.testDriveApi() },
+            Entry("Rimuovi chiave API", Icons.Rounded.Delete, "Cancella la chiave dal telefono") { vm.saveApiKey("") },
+            Entry("Come funziona", Icons.Rounded.Info) { info = "Questa modalità non usa il tuo account Google: usa una chiave API tua e legge solo le cartelle che hai condiviso con «Chiunque abbia il link».\n\n1. Abilita la Drive API nel progetto Google Cloud.\n2. Crea una chiave API nello stesso progetto. Per sicurezza limitala alla sola Drive API; non limitarla ad «app Android», altrimenti Drive la rifiuta.\n3. Incolla la chiave qui.\n4. Su Drive condividi la cartella con «Chiunque abbia il link» (Visualizzatore) e incolla qui il link.\n\nLa chiave resta solo nella memoria privata di questo telefono. Se colleghi anche un account Google, l’app usa l’account.\n\nL’uso normale rientra nelle quote gratuite standard di Google. Questa modalità non è ancora stata provata con un tuo Drive: usa «Verifica collegamento» per vedere subito l’esito." }
+        )
         "spotify" -> listOf(
             Entry("Apri app Spotify", Icons.Rounded.OpenInNew, "Riproduzione nell’app ufficiale", Color(0xFF1ED760)) { launchSpotify(true) },
             Entry("Apri Spotify nel browser", Icons.Rounded.Language, "Accesso tramite browser sicuro") { launchSpotify(false) },
@@ -150,6 +184,7 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             Entry("Sensibilità Click Wheel", Icons.Rounded.TouchApp, "${(settings.sensitivity * 100).toInt()}%") { push("sensitivity", "Click Wheel") },
             Entry("Feedback aptico", Icons.Rounded.Vibration, if(settings.haptics) "Attivo" else "Disattivato") { vm.preference(Preferences.haptics, !settings.haptics) },
             Entry("Account Google Drive", Icons.Rounded.AddToDrive, settings.driveEmail.ifBlank { "Non collegato" }) { push("account", "Account Google Drive") },
+            Entry("Drive con chiave API", Icons.Rounded.VpnKey, if (settings.apiKey.isBlank()) "Non impostata" else "Chiave impostata · ${savedFolders.size} cartelle") { push("driveapi", "Drive con chiave API") },
             Entry("Gestione cache", Icons.Rounded.Storage, "Streaming e download offline") { push("cache", "Gestione cache") },
             Entry("Qualità audio", Icons.Rounded.GraphicEq, "Qualità originale") { info = "I file vengono riprodotti nella qualità originale, senza ricodifica. I formati disponibili dipendono dai decoder Android. La qualità Spotify si gestisce in Spotify." },
             Entry("Ordina musica", Icons.Rounded.Sort, settings.sort) { push("sort", "Ordinamento") },
@@ -208,7 +243,8 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
                                 Column(Modifier.weight(1f).padding(12.dp), verticalArrangement = Arrangement.Center) {
                                     Text(driveError!!, color = Ice, fontSize = (13 * scale).sp)
                                     TextButton(onClick = { vm.loadDrive(route.arg.ifBlank { "root" }, query, route.title) }) { Text("Riprova") }
-                                    TextButton(onClick = connectDrive) { Text("Ricollega Google") }
+                                    if (keyMode) TextButton(onClick = { push("driveapi", "Drive con chiave API") }) { Text("Chiave API e cartelle") }
+                                    else TextButton(onClick = connectDrive) { Text("Ricollega Google") }
                                 }
                             } else if (entries.isEmpty() && !driveBusy) {
                                 EmptyScreen(when(route.type) { "search" -> if(query.isBlank()) "Cerca nella tua libreria" else "Nessun risultato"; "drive" -> "Nessun file audio in questa cartella"; "tracks" -> "La tua musica inizia qui"; else -> "Nessun brano da mostrare" },
@@ -270,6 +306,18 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             dismissButton = { TextButton(onClick = { newPlaylist = false }) { Text("Annulla") } })
         deletePlaylist?.let { p -> AlertDialog(onDismissRequest = { deletePlaylist = null }, title = { Text("Elimina ${p.name}?") }, text = { Text("I brani originali vengono conservati.") },
             confirmButton = { TextButton(onClick = { vm.deletePlaylist(p.id); deletePlaylist = null; back() }) { Text("Elimina") } }, dismissButton = { TextButton(onClick = { deletePlaylist = null }) { Text("Annulla") } }) }
+        if (keyDialog) AlertDialog(onDismissRequest = { keyDialog = false }, title = { Text("Chiave API") }, text = {
+            OutlinedTextField(keyText, { keyText = it }, label = { Text("Incolla la chiave (inizia con AIza…)") }, singleLine = true)
+        }, confirmButton = { TextButton(onClick = { vm.saveApiKey(keyText); keyDialog = false }, enabled = keyText.isNotBlank()) { Text("Salva") } },
+            dismissButton = { TextButton(onClick = { keyDialog = false }) { Text("Annulla") } })
+        if (folderDialog) AlertDialog(onDismissRequest = { folderDialog = false }, title = { Text("Cartella condivisa") }, text = {
+            OutlinedTextField(folderText, { folderText = it }, label = { Text("Link della cartella Drive") }, singleLine = true)
+        }, confirmButton = { TextButton(onClick = { vm.addFolder(folderText); folderDialog = false }, enabled = folderText.isNotBlank()) { Text("Aggiungi") } },
+            dismissButton = { TextButton(onClick = { folderDialog = false }) { Text("Annulla") } })
+        removeFolder?.let { f -> AlertDialog(onDismissRequest = { removeFolder = null }, title = { Text("Rimuovere ${f.name}?") },
+            text = { Text("La cartella resta su Drive; sparisce solo da questa app.") },
+            confirmButton = { TextButton(onClick = { vm.removeFolder(f.id); removeFolder = null }) { Text("Rimuovi") } },
+            dismissButton = { TextButton(onClick = { removeFolder = null }) { Text("Annulla") } }) }
         info?.let { text -> AlertDialog(onDismissRequest = { info = null }, title = { Text(route.title) }, text = { Text(text, Modifier.verticalScroll(rememberScrollState())) }, confirmButton = { TextButton(onClick = { info = null }) { Text("Chiudi") } }) }
     }
 }

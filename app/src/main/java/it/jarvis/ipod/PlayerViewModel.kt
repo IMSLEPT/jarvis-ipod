@@ -10,9 +10,13 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import it.jarvis.ipod.data.*
 import it.jarvis.ipod.drive.DriveFile
+import it.jarvis.ipod.drive.DriveFolder
+import it.jarvis.ipod.drive.DriveLinks
+import it.jarvis.ipod.drive.Via
 import it.jarvis.ipod.playback.PlaybackService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import java.io.IOException
 
 data class Playback(val connected: Boolean = false, val id: String? = null, val title: String = "Nessun brano",
     val artist: String = "La tua musica, un giro alla volta", val album: String = "", val artwork: String? = null,
@@ -95,6 +99,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
     fun loadDrive(id: String, query: String = "", title: String = "Google Drive") {
         driveJob?.cancel()
+        // Senza account, la radice è l'elenco delle cartelle condivise salvate: non c'è nulla da chiedere a Drive.
+        if (id == "root" && settings.value.driveEmail.isBlank()) { driveFiles.value = emptyList(); driveError.value = null; driveBusy.value = false; return }
         driveJob = launch {
             driveBusy.value = true; driveError.value = null; driveFiles.value = emptyList()
             try {
@@ -114,6 +120,34 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun disconnectDrive() = launch {
         if (playback.value.id?.startsWith("drive:") == true) pause()
         graph.auth.disconnect(); driveFiles.value = emptyList(); message.value = "Account scollegato"
+    }
+    fun saveApiKey(key: String) = launch {
+        graph.preferences.set(Preferences.apiKey, key.trim().replace(Regex("\\s"), ""))
+        message.value = if (key.isBlank()) "Chiave API rimossa" else "Chiave API salvata"
+    }
+    fun addFolder(link: String) = launch {
+        val (id, resourceKey) = DriveLinks.parse(link)
+            ?: throw IOException("Link non riconosciuto. Incolla il link della cartella (drive.google.com/drive/folders/…).")
+        val current = DriveLinks.decode(settings.value.folders)
+        if (current.any { it.id == id }) { message.value = "Cartella già presente"; return@launch }
+        // Se la chiave è già impostata prova a leggere il nome reale; altrimenti nome provvisorio.
+        val name = runCatching { graph.drive.folderName(id, resourceKey) }.getOrNull() ?: "Cartella condivisa ${current.size + 1}"
+        graph.preferences.set(Preferences.folders, DriveLinks.encode(current + DriveFolder(id, name, resourceKey)))
+        message.value = "Cartella aggiunta: $name"
+    }
+    fun removeFolder(id: String) = launch {
+        graph.preferences.set(Preferences.folders, DriveLinks.encode(DriveLinks.decode(settings.value.folders).filter { it.id != id }))
+        message.value = "Cartella rimossa"
+    }
+    /** Prova reale: elenca la prima cartella salvata usando soltanto la chiave API. */
+    fun testDriveApi() = launch {
+        val s = settings.value
+        if (s.apiKey.isBlank()) throw IOException("Prima incolla la chiave API.")
+        val folder = DriveLinks.decode(s.folders).firstOrNull() ?: throw IOException("Prima aggiungi il link di una cartella condivisa.")
+        message.value = "Verifica in corso…"
+        val files = graph.drive.list(folder.id, via = Via.KEY)
+        val songs = files.count { !it.folder }
+        message.value = "Funziona: in «${folder.name}» ci sono $songs brani e ${files.size - songs} sottocartelle."
     }
     fun download(track: Track) {
         if (track.id in downloads.value) return
