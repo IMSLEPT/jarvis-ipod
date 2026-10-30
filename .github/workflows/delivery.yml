@@ -1,0 +1,33 @@
+name: Consegna APK
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Nuovo tag per pubblicare gli allegati presenti in dist/'
+        required: true
+        default: 'v1.0.0-debug'
+        type: string
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verifica checksum della consegna
+        working-directory: dist
+        run: sha256sum -c SHA256SUMS
+      - name: Pubblica APK e archivio sorgenti
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: >-
+          gh release create "$RELEASE_TAG"
+          --target "$GITHUB_SHA"
+          --prerelease
+          --title "Jarvis iPod — $RELEASE_TAG"
+          --notes-file docs/CONSEGNA.md
+          dist/Jarvis-iPod-debug.apk
+          dist/Jarvis-iPod-sorgenti.zip
+          dist/SHA256SUMS

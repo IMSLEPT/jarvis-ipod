@@ -12,6 +12,8 @@ App Android nativa in Kotlin e Jetpack Compose. Interfaccia ispirata **all’imm
 
 Per modificare l’app usa i file sorgente del repository. `dist/` conserva la consegna verificata; una nuova compilazione produce il proprio APK in `app/build/outputs/apk/debug/`. Il workflow GitHub Actions compila, esegue i test JVM e Lint e conserva l’APK tra gli artifact della singola esecuzione. I test su dispositivo richiedono un telefono o un emulatore e non vengono eseguiti dal workflow corrente.
 
+Il workflow manuale **Consegna APK** pubblica una prerelease con i file già presenti in `dist/`, dopo averne verificato i checksum. Non ricompila l’app. Prima di nuove consegne aggiornare deliberatamente gli allegati e usare un nuovo tag; una release esistente non viene sovrascritta.
+
 ## Installazione sul Pixel
 
 1. Trasferisci `Jarvis-iPod-debug.apk` sul telefono.
