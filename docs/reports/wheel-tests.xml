@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="it.jarvis.ipod.ui.WheelAccumulatorTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-28T19:01:15" hostname="dff2630e8d5d" time="0.027">
+  <properties/>
+  <testcase name="discontinuousMotionIsRejected" classname="it.jarvis.ipod.ui.WheelAccumulatorTest" time="0.023"/>
+  <testcase name="sensitivityChangesRate" classname="it.jarvis.ipod.ui.WheelAccumulatorTest" time="0.002"/>
+  <testcase name="centerAndRingAreDistinct" classname="it.jarvis.ipod.ui.WheelAccumulatorTest" time="0.001"/>
+  <testcase name="crossesAngleBoundaryWithoutJumping" classname="it.jarvis.ipod.ui.WheelAccumulatorTest" time="0.0"/>
+  <testcase name="jitterDoesNotAccumulateIntoClicks" classname="it.jarvis.ipod.ui.WheelAccumulatorTest" time="0.0"/>
+  <testcase name="clockwiseAndCounterclockwiseAreSymmetric" classname="it.jarvis.ipod.ui.WheelAccumulatorTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

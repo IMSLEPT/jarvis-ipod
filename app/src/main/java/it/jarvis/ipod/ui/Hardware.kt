@@ -1,0 +1,205 @@
+package it.jarvis.ipod.ui
+
+import android.graphics.Bitmap
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.*
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.*
+import it.jarvis.ipod.data.Settings
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.hypot
+import kotlin.random.Random
+
+val Ice = Color(0xFFE9EEF5)
+val Muted = Color(0xFF9CAAC0)
+val Blue = Color(0xFF1788FF)
+val DisplayBlack = Color(0xFF060C14)
+
+@Composable
+fun IPodShell(settings: Settings, modifier: Modifier = Modifier, display: @Composable (Float) -> Unit,
+    onStep: (Int) -> Unit, onButton: (String) -> Unit, onHold: (String) -> Unit) {
+    // Generate once and draw once per frame; thousands of individual grain strokes
+    // inside the draw callback made cold software rendering unnecessarily expensive.
+    val grainBrush = remember {
+        var seed = 53
+        var color = 0
+        val pixels = IntArray(64 * 64) { index ->
+            if (index % 2 == 0) {
+                seed = seed * 1664525 + 1013904223
+                color = if ((seed ushr 28) > 7) 0x02FFFFFF else 0x03000000
+            }
+            color
+        }
+        val bitmap = Bitmap.createBitmap(pixels, 64, 64, Bitmap.Config.ARGB_8888).asImageBitmap()
+        ShaderBrush(ImageShader(bitmap, TileMode.Repeated, TileMode.Repeated))
+    }
+    BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val width = minOf(maxWidth - 16.dp, (maxHeight - 12.dp) / 1.82f)
+        val scale = width.value / 400f
+        val height = width * 1.82f
+        val shape = RoundedCornerShape(width * .105f)
+        Box(Modifier.size(width, height).shadow(18.dp, shape).clip(shape)) {
+            Canvas(Modifier.fillMaxSize()) {
+                val w = size.width; val h = size.height
+                val unit = w / 400f
+                val black = settings.midnight
+                val metal = if (black) listOf(Color(0xFF6A6D70), Color(0xFF292C30), Color(0xFF3C3E42), Color(0xFF202328))
+                    else listOf(Color(0xFFF0F0ED), Color(0xFFC3C5C6), Color(0xFFE1E1DE), Color(0xFFAAADAF))
+                drawRoundRect(Brush.linearGradient(metal, Offset(0f, 0f), Offset(w, h * .35f)), cornerRadius = CornerRadius(w * .105f))
+                drawRect(grainBrush)
+                drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = .65f), Color.Transparent, Color.Black.copy(alpha = .45f))),
+                    topLeft = Offset(2f * unit, 2f * unit), size = Size(w - 4 * unit, h - 4 * unit), cornerRadius = CornerRadius(w * .105f), style = Stroke(4f * unit))
+                drawRoundRect(Color.Black.copy(alpha = .24f), topLeft = Offset(5f * unit, 5f * unit), size = Size(w - 10 * unit, h - 10 * unit),
+                    cornerRadius = CornerRadius(w * .10f), style = Stroke(1.3f * unit))
+            }
+            Column(Modifier.fillMaxSize().padding(horizontal = width * .066f, vertical = width * .073f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.fillMaxWidth().height(height * .535f).shadow(3.dp, RoundedCornerShape(13.dp * scale))
+                    .background(Brush.linearGradient(listOf(Color(0xFF35393D), Color.Black, Color(0xFF74777B))), RoundedCornerShape(13.dp * scale))
+                    .border(1.dp, Color(0xFF83888A), RoundedCornerShape(13.dp * scale)).padding(5.dp * scale)
+                    .clip(RoundedCornerShape(8.dp * scale)).background(DisplayBlack)) { display(scale) }
+                Spacer(Modifier.weight(1f))
+                ClickWheel(width * .608f, settings, onStep, onButton, onHold)
+                Spacer(Modifier.height(width * .035f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClickWheel(diameter: Dp, settings: Settings, onStep: (Int) -> Unit, onButton: (String) -> Unit, onHold: (String) -> Unit) {
+    val step by rememberUpdatedState(onStep)
+    val button by rememberUpdatedState(onButton)
+    val hold by rememberUpdatedState(onHold)
+    val sensitivity by rememberUpdatedState(settings.sensitivity)
+    val ink = if (settings.midnight) Color(0xFFE0E3E7) else Color(0xFF838B93)
+    var pressed by remember { mutableStateOf<String?>(null) }
+    val scale = diameter.value / 244
+    Box(Modifier.size(diameter).testTag("click-wheel").pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val radius = size.width / 2f
+            val start = down.position - Offset(radius, radius)
+            if (hypot(start.x, start.y) > radius) return@awaitEachGesture
+            down.consume()
+            val key = WheelAccumulator.button(start.x, start.y, radius)
+            val wheel = WheelAccumulator(sensitivity)
+            wheel.begin(start.x, start.y)
+            val ring = WheelAccumulator.onRing(start.x, start.y, radius)
+            var dragged = false
+            var held = false
+            var cancelled = false
+            var active = true
+            pressed = key
+            while (active) {
+                val event = if (!dragged && (key == "next" || key == "previous")) {
+                    withTimeoutOrNull(if (held) 180L else 500L) { awaitPointerEvent() }
+                } else awaitPointerEvent()
+                if (event == null) { held = true; hold(key); continue }
+                // Cancel any multi-finger gesture; never convert it into an accidental click.
+                if (event.changes.count { it.pressed } > 1) { cancelled = true; dragged = true; pressed = null }
+                val change = event.changes.firstOrNull { it.id == down.id }
+                if (change == null || !change.pressed) { active = false; continue }
+                val offset = change.position - Offset(radius, radius)
+                if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) { dragged = true; pressed = null }
+                if (dragged && ring && !held && !cancelled && WheelAccumulator.onRing(offset.x, offset.y, radius * 1.06f)) {
+                    val count = wheel.move(offset.x, offset.y)
+                    if (count != 0) step(count)
+                }
+                change.consume()
+            }
+            if (!dragged && !held && !cancelled) button(key)
+            pressed = null; wheel.end()
+        }
+    }) {
+        Canvas(Modifier.fillMaxSize()) {
+            val r = size.width / 2
+            val unit = size.width / 244f
+            drawCircle(Brush.linearGradient(if (settings.midnight) listOf(Color(0xFF22262D), Color(0xFF0C1016)) else listOf(Color(0xFFF6F6F3), Color(0xFFE0E2E1))))
+            drawCircle(Color.Black.copy(alpha = .28f), style = Stroke(unit))
+            drawCircle(Color.White.copy(alpha = .17f), radius = r - 1.5f * unit, style = Stroke(unit))
+            drawCircle(Brush.linearGradient(if (settings.midnight) listOf(Color(0xFF54565B), Color(0xFF303338), Color(0xFF44474A))
+                else listOf(Color(0xFFB4B7B8), Color(0xFFDDDEDC), Color(0xFFC5C7C6))), radius = r * .387f)
+            drawCircle(Color.Black.copy(alpha = .36f), radius = r * .387f, style = Stroke(unit))
+            drawCircle(Color.White.copy(alpha = .36f), radius = r * .387f - 1.3f * unit, style = Stroke(.7f * unit))
+            if (pressed == "select") drawCircle(Color.Black.copy(alpha = .09f), radius = r * .385f)
+        }
+        fun Modifier.control(name: String, label: String) = semantics {
+            contentDescription = label; role = Role.Button
+            onClick { button(name); true }
+        }
+        Text("MENU", color = ink, fontSize = (17f * scale).sp, fontWeight = FontWeight.Medium,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = diameter * .045f).control("menu", "MENU, indietro"))
+        SkipGlyph(false, ink, Modifier.align(Alignment.CenterStart).padding(start = diameter * .045f).size(diameter * .12f).control("previous", "Brano precedente"))
+        SkipGlyph(true, ink, Modifier.align(Alignment.CenterEnd).padding(end = diameter * .045f).size(diameter * .12f).control("next", "Brano successivo"))
+        Row(Modifier.align(Alignment.BottomCenter).padding(bottom = diameter * .045f).control("play", "Play o pausa"), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.PlayArrow, "", tint = ink, modifier = Modifier.size(diameter * .075f))
+            Icon(Icons.Rounded.Pause, "", tint = ink, modifier = Modifier.size(diameter * .075f))
+        }
+        Box(Modifier.size(diameter * .38f).align(Alignment.Center).control("select", "Seleziona"))
+    }
+}
+
+@Composable
+private fun SkipGlyph(next: Boolean, color: Color, modifier: Modifier) {
+    Canvas(modifier) {
+        fun x(fraction: Float) = size.width * if (next) fraction else 1f - fraction
+        for (left in listOf(.08f, .40f)) {
+            drawPath(Path().apply {
+                moveTo(x(left), size.height * .25f)
+                lineTo(x(left + .32f), size.height * .5f)
+                lineTo(x(left), size.height * .75f)
+                close()
+            }, color)
+        }
+        drawLine(color, Offset(x(.83f), size.height * .25f), Offset(x(.83f), size.height * .75f), size.width * .10f)
+    }
+}
+
+@Composable
+fun Artwork(uri: String?, modifier: Modifier = Modifier, title: String = "Copertina") {
+    Box(modifier.clip(RoundedCornerShape(9.dp))) {
+        Canvas(Modifier.fillMaxSize()) {
+            val w = size.width; val h = size.height
+            drawRect(Brush.verticalGradient(listOf(Color(0xFF07385B), Color(0xFF385980), Color(0xFFC66B83), Color(0xFFFFB465), Color(0xFF203B53))))
+            drawCircle(Brush.radialGradient(listOf(Color(0xFFFFE9A1), Color(0xFFFFBD71).copy(alpha = .8f), Color.Transparent), center = Offset(w * .72f, h * .55f), radius = w * .28f), radius = w * .28f, center = Offset(w * .72f, h * .55f))
+            drawCircle(Color(0xFFFFDC8E), w * .075f, Offset(w * .72f, h * .55f))
+            for (layer in 0..4) {
+                val path = Path().apply {
+                    moveTo(0f, h); lineTo(0f, h * (.60f + layer * .065f))
+                    for (i in 0..12) {
+                        val x = w * i / 12
+                        val noise = Random(layer * 71 + i).nextFloat()
+                        lineTo(x, h * (.55f + layer * .07f + noise * .13f))
+                    }
+                    lineTo(w, h); close()
+                }
+                drawPath(path, listOf(Color(0xFF6F6485), Color(0xFF4A5271), Color(0xFF2D425F), Color(0xFF193448), Color(0xFF0B2334))[layer])
+            }
+        }
+        if (!uri.isNullOrBlank()) coil.compose.AsyncImage(model = uri, contentDescription = title,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    }
+}
