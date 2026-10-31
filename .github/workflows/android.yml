@@ -17,6 +17,17 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
+      - name: Chiave di firma stabile (se presente nei segreti)
+        env:
+          JARVIS_KEYSTORE_B64: ${{ secrets.JARVIS_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$JARVIS_KEYSTORE_B64" ]; then
+            mkdir -p signing
+            printf '%s' "$JARVIS_KEYSTORE_B64" | base64 -d > signing/debug.keystore
+            echo "::notice title=Firma stabile::Uso la chiave del segreto JARVIS_KEYSTORE_B64: l'APK si installa sopra quello già installato."
+          else
+            echo "::warning title=Firma non stabile::Segreto JARVIS_KEYSTORE_B64 assente: chiave nuova, bisogna disinstallare l'app prima di installare."
+          fi
       - run: ./scripts/create-debug-key.sh
       - name: Compila, test e Lint
         run: |

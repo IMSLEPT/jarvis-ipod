@@ -27,7 +27,8 @@ android {
         applicationId = "it.jarvis.ipod"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
+        // Cresce a ogni esecuzione del workflow: Android accetta solo aggiornamenti con versionCode uguale o superiore.
+        versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0)
         versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
