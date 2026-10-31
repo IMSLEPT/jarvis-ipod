@@ -39,6 +39,9 @@ class JarvisDeviceTest {
             app.preferences.set(Preferences.neon, false)
         }
         compose.waitForIdle()
+        // L'app parte dalla schermata iniziale: il tasto centrale entra nel menu.
+        compose.onNodeWithContentDescription("Seleziona").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("click-wheel").performTouchInput {
             val r = width * .40f
             down(Offset(center.x + r, center.y))
@@ -55,25 +58,25 @@ class JarvisDeviceTest {
         compose.activityRule.scenario.recreate()
         compose.waitForIdle()
         assertTrue(runBlocking { app.preferences.settings.first().midnight })
-        compose.onNodeWithContentDescription("MENU, indietro").performClick()
+        // MENU sale nella lista (il ritorno indietro è la pressione prolungata): la schermata resta la stessa.
+        compose.onNodeWithContentDescription("MENU, su (tieni premuto per tornare indietro)").performClick()
         compose.onNodeWithText("Aspetto iPod").assertIsDisplayed()
     }
 
-    @Test fun neonTogglePersistsWithoutChangingDriveOrTheme() {
+    @Test fun neonTogglePersistsWithoutChangingExistingSettings() {
         val previous = runBlocking { app.preferences.settings.first() }
         runBlocking { app.preferences.set(Preferences.neon, false) }
         compose.waitForIdle()
-        compose.onNodeWithText("Impostazioni").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Seleziona").performClick()
+        compose.onNodeWithTag("menu-list").performScrollToNode(hasText("Impostazioni"))
+        compose.onNodeWithText("Impostazioni").performClick()
         compose.onNodeWithContentDescription("Alone neon").performScrollTo().assertIsOff().performClick()
         compose.waitUntil(10000) { runBlocking { app.preferences.settings.first().neon } }
         compose.activityRule.scenario.recreate()
         compose.waitForIdle()
         compose.onNodeWithContentDescription("Alone neon").performScrollTo().assertIsOn()
         val current = runBlocking { app.preferences.settings.first() }
-        assertEquals(previous.midnight, current.midnight)
-        assertEquals(previous.apiKey, current.apiKey)
-        assertEquals(previous.folders, current.folders)
-        assertEquals(previous.driveEmail, current.driveEmail)
+        assertEquals(previous.copy(neon = true), current)
         compose.onNodeWithContentDescription("Alone neon").performClick()
         compose.waitUntil(10000) { runBlocking { !app.preferences.settings.first().neon } }
     }

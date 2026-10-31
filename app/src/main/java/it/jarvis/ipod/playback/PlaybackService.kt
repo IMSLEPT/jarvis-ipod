@@ -1,8 +1,8 @@
 package it.jarvis.ipod.playback
 
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
+import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.Uri
@@ -10,8 +10,8 @@ import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.*
 import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.TeeAudioProcessor
@@ -50,9 +50,9 @@ class PlaybackService : MediaSessionService() {
                 val offline = track?.offlinePath?.let(::File)?.takeIf { it.exists() }
                 if (offline != null) spec.withUri(Uri.fromFile(offline))
                 else {
-                    // OAuth: bearer; senza account: chiave API (e resource key) scelte dal repository.
-                    val (url, headers) = graph.drive.streamRequest(id)
-                    spec.withUri(Uri.parse(url)).withRequestHeaders(spec.httpRequestHeaders + headers)
+                    val access = graph.drive.access("https://www.googleapis.com/drive/v3/files/$id?alt=media&supportsAllDrives=true")
+                    val headers = spec.httpRequestHeaders + access.headers + (access.bearer?.let { mapOf("Authorization" to "Bearer $it") } ?: emptyMap())
+                    spec.withUri(Uri.parse(access.url)).withRequestHeaders(headers)
                 }
             }
         }
@@ -61,7 +61,6 @@ class PlaybackService : MediaSessionService() {
             DefaultHttpDataSource.Factory().setConnectTimeoutMs(20_000).setReadTimeoutMs(30_000)), resolver)
         val cached = CacheDataSource.Factory().setCache(graph.audioCache).setUpstreamDataSourceFactory(upstream)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-        // Il PCM passa da BeatAnalyzer (nessun permesso, nessuna modifica dell'audio) per far reagire l'alone neon.
         val renderers = object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
                 DefaultAudioSink.Builder(context).setEnableFloatOutput(enableFloatOutput)
@@ -106,8 +105,8 @@ class PlaybackService : MediaSessionService() {
         connectivity.registerDefaultNetworkCallback(networkCallback)
         scope.launch {
             graph.preferences.settings.collect {
-                AudioReactive.enabled = it.neon
-                if (!it.neon) AudioReactive.reset()
+                AudioReactive.enabled = it.neon && it.glow != "off"
+                if (!AudioReactive.enabled) AudioReactive.reset()
             }
         }
         scope.launch {

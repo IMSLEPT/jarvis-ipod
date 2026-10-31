@@ -2,6 +2,8 @@ package it.jarvis.ipod
 
 import android.app.Application
 import android.content.ComponentName
+import android.content.Intent
+import android.net.Uri
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,13 +12,10 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import it.jarvis.ipod.data.*
 import it.jarvis.ipod.drive.DriveFile
-import it.jarvis.ipod.drive.DriveFolder
 import it.jarvis.ipod.drive.DriveLinks
-import it.jarvis.ipod.drive.Via
 import it.jarvis.ipod.playback.PlaybackService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import java.io.IOException
 
 data class Playback(val connected: Boolean = false, val id: String? = null, val title: String = "Nessun brano",
     val artist: String = "La tua musica, un giro alla volta", val album: String = "", val artwork: String? = null,
@@ -51,6 +50,34 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }.onFailure { message.value = "Lettore non disponibile: ${it.localizedMessage}" }
         }, ContextCompat.getMainExecutor(application))
         viewModelScope.launch { while (isActive) { update(); delay(400) } }
+        keepBackupUpToDate()
+    }
+    private val resolver get() = getApplication<Application>().contentResolver
+    /** Se l'utente ha scelto un file di backup, lo riscrive (dopo una breve pausa) a ogni modifica delle impostazioni. */
+    @OptIn(FlowPreview::class)
+    private fun keepBackupUpToDate() {
+        viewModelScope.launch {
+            settings.map { SettingsBackup.toJson(it) to it.backupUri }.distinctUntilChanged().drop(1).debounce(1500).collect { (json, uri) ->
+                if (uri.isNotBlank()) try {
+                    withContext(Dispatchers.IO) { resolver.openOutputStream(Uri.parse(uri), "wt")?.use { it.write(json.toByteArray()) } }
+                } catch (e: Exception) { message.value = "Backup automatico non riuscito: ${e.localizedMessage ?: "file non raggiungibile"}. Salva di nuovo il backup." }
+            }
+        }
+    }
+    /** Salva il backup nel file scelto e lo tiene aggiornato da quel momento. */
+    fun saveBackup(uri: Uri) = launch {
+        withContext(Dispatchers.IO) { resolver.openOutputStream(uri, "wt")!!.use { it.write(SettingsBackup.toJson(settings.value).toByteArray()) } }
+        runCatching { resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+        graph.preferences.set(Preferences.backupUri, uri.toString())
+        message.value = "Backup salvato. Da ora si aggiorna da solo a ogni modifica."
+    }
+    fun restoreBackup(uri: Uri) = launch {
+        val text = withContext(Dispatchers.IO) { resolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) } }
+        val backup = SettingsBackup.fromJson(text)
+        if (backup == null) { message.value = "Il file scelto non è un backup di Jarvis."; return@launch }
+        graph.preferences.restore(backup)
+        message.value = "Ripristinati: ${backup.driveFolders.size} cartelle Drive" + (if (backup.spotifyClientId.isNotBlank()) ", Client ID Spotify" else "") +
+            ". Ricollega Google Drive. Per riattivare il backup automatico, salvalo di nuovo."
     }
     private fun update() {
         val p = controller ?: return
@@ -97,20 +124,40 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (scanning.value) return
         launch { scanning.value = true; try { message.value = "${graph.local.scan()} brani trovati" } finally { scanning.value = false } }
     }
-    fun loadDrive(id: String, query: String = "", title: String = "Google Drive") {
+    /** [pick] = scelta delle cartelle: elenca solo sottocartelle e non salva alcun brano nella libreria. */
+    fun loadDrive(id: String, query: String = "", title: String = "Google Drive", pick: Boolean = false) {
         driveJob?.cancel()
-        // Senza account, la radice è l'elenco delle cartelle condivise salvate: non c'è nulla da chiedere a Drive.
-        if (id == "root" && settings.value.driveEmail.isBlank()) { driveFiles.value = emptyList(); driveError.value = null; driveBusy.value = false; return }
         driveJob = launch {
             driveBusy.value = true; driveError.value = null; driveFiles.value = emptyList()
             try {
-                val files = graph.drive.list(id, query)
-                graph.drive.remember(files, title)
+                val files = graph.drive.list(id, query, foldersOnly = pick)
+                if (!pick) graph.drive.remember(files, title)
                 driveFiles.value = files
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { driveError.value = e.localizedMessage ?: "Connessione Drive non disponibile" }
             finally { driveBusy.value = false }
         }
+    }
+    fun addDriveFolder(folder: DriveFolder) = launch { saveDriveFolder(folder) }
+    private suspend fun saveDriveFolder(folder: DriveFolder) {
+        val current = settings.value.driveFolders
+        if (current.none { it.id == folder.id }) {
+            graph.preferences.set(Preferences.driveFolders, Preferences.encodeFolders(current + folder))
+        }
+        message.value = "Cartella salvata: ${folder.name}" +
+            if (settings.value.backupUri.isBlank()) ". Attiva il Backup in Impostazioni per ritrovarla anche dopo una reinstallazione." else ""
+    }
+    /** Aggiunge una cartella da un link «Condividi» di Drive. Funziona con la chiave API anche senza account collegato. */
+    fun addDriveFolderFromLink(text: String) = launch {
+        val id = DriveLinks.folderId(text)
+        if (id == null) { message.value = "Link non riconosciuto. Incolla il link «Condividi» di una cartella di Google Drive."; return@launch }
+        try { saveDriveFolder(DriveFolder(id, graph.drive.folderName(id))) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { message.value = e.localizedMessage ?: "Cartella non raggiungibile" }
+    }
+    fun removeDriveFolder(id: String) = launch {
+        graph.preferences.set(Preferences.driveFolders, Preferences.encodeFolders(settings.value.driveFolders.filter { it.id != id }))
+        message.value = "Cartella rimossa dall’elenco"
     }
     fun driveConnected() = launch {
         val email = graph.drive.accountEmail()
@@ -120,34 +167,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun disconnectDrive() = launch {
         if (playback.value.id?.startsWith("drive:") == true) pause()
         graph.auth.disconnect(); driveFiles.value = emptyList(); message.value = "Account scollegato"
-    }
-    fun saveApiKey(key: String) = launch {
-        graph.preferences.set(Preferences.apiKey, key.trim().replace(Regex("\\s"), ""))
-        message.value = if (key.isBlank()) "Chiave API rimossa" else "Chiave API salvata"
-    }
-    fun addFolder(link: String) = launch {
-        val (id, resourceKey) = DriveLinks.parse(link)
-            ?: throw IOException("Link non riconosciuto. Incolla il link della cartella (drive.google.com/drive/folders/…).")
-        val current = DriveLinks.decode(settings.value.folders)
-        if (current.any { it.id == id }) { message.value = "Cartella già presente"; return@launch }
-        // Se la chiave è già impostata prova a leggere il nome reale; altrimenti nome provvisorio.
-        val name = runCatching { graph.drive.folderName(id, resourceKey) }.getOrNull() ?: "Cartella condivisa ${current.size + 1}"
-        graph.preferences.set(Preferences.folders, DriveLinks.encode(current + DriveFolder(id, name, resourceKey)))
-        message.value = "Cartella aggiunta: $name"
-    }
-    fun removeFolder(id: String) = launch {
-        graph.preferences.set(Preferences.folders, DriveLinks.encode(DriveLinks.decode(settings.value.folders).filter { it.id != id }))
-        message.value = "Cartella rimossa"
-    }
-    /** Prova reale: elenca la prima cartella salvata usando soltanto la chiave API. */
-    fun testDriveApi() = launch {
-        val s = settings.value
-        if (s.apiKey.isBlank()) throw IOException("Prima incolla la chiave API.")
-        val folder = DriveLinks.decode(s.folders).firstOrNull() ?: throw IOException("Prima aggiungi il link di una cartella condivisa.")
-        message.value = "Verifica in corso…"
-        val files = graph.drive.list(folder.id, via = Via.KEY)
-        val songs = files.count { !it.folder }
-        message.value = "Funziona: in «${folder.name}» ci sono $songs brani e ${files.size - songs} sottocartelle."
     }
     fun download(track: Track) {
         if (track.id in downloads.value) return

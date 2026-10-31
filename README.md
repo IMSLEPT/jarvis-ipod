@@ -20,7 +20,7 @@ Il workflow manuale **Consegna APK** pubblica una prerelease con i file già pre
 2. Aprilo da Files e abilita, se richiesto, «Installa app sconosciute» per Files.
 3. Installa e apri **Jarvis iPod**. Android minimo: 8.0 / API 26.
 4. Seleziona **Musica locale** e autorizza l’accesso ai file audio. Su Android 13+ viene richiesto solo `READ_MEDIA_AUDIO`; sui sistemi precedenti `READ_EXTERNAL_STORAGE`, limitato ad Android 12L.
-5. Per Drive completa prima la configurazione OAuth descritta sotto. Spotify si apre nell’app ufficiale o nel browser.
+5. Per Drive completa prima la configurazione OAuth descritta sotto. Spotify si collega dall’interno di Jarvis dopo aver inserito il Client ID (vedi sezione Spotify).
 
 Con USB e debug USB attivo:
 
@@ -35,11 +35,12 @@ L’APK debug è firmato per sviluppo ed è installabile. Per aggiornare senza p
 | Comando | Azione |
 |---|---|
 | Giro orario / antiorario | Sposta la selezione nei menu |
-| Centro | Conferma; nel lettore apre le opzioni del brano |
-| MENU | Torna alla schermata precedente |
+| Centro | Su un brano lo avvia, e lo rimette in pausa se è già quello in ascolto; nel lettore play/pausa; sulle altre voci le apre |
+| MENU (in alto) | Sposta la selezione verso l’alto; nel lettore torna indietro |
+| Tasto in basso | Sposta la selezione verso il basso; nel lettore play/pausa |
+| MENU tenuto premuto | Torna alla schermata precedente (funzionano anche la freccia indietro del display e il gesto Indietro di Android) |
 | Sinistra / destra | Brano precedente / successivo |
 | Pressione prolungata laterale | Cerca nel brano a passi di 5 secondi |
-| Play / pausa | Controlla il lettore locale e Drive |
 | Ruota nel lettore | Cerca nel brano a passi di 5 secondi |
 | Tocca display | Seleziona direttamente; ⋮ apre le opzioni |
 
@@ -49,7 +50,7 @@ Le playlist possono contenere file locali e Drive. Le opzioni dei brani permetto
 
 ## Configurazione Google Drive, senza segreti nell’app
 
-Questa app usa **Google Identity Services `AuthorizationClient`** e Drive REST API v3. La registrazione OAuth Android è associata a **package e certificato di firma**: non occorrono un client secret, un backend, una API key o `google-services.json`.
+Questa app usa **Google Identity Services `AuthorizationClient`** e Drive REST API v3. La registrazione OAuth Android è associata a **package e certificato di firma**: non occorrono un client secret, un backend o `google-services.json`. In alternativa all’account c’è la modalità **chiave API + link di cartella condivisa** (sotto).
 
 1. Apri [Google Cloud Console](https://console.cloud.google.com/) e crea/seleziona un progetto.
 2. In **API e servizi → Libreria**, abilita **Google Drive API**.
@@ -66,7 +67,9 @@ Questa app usa **Google Identity Services `AuthorizationClient`** e Drive REST A
    ```
 
 7. Attendi la propagazione della configurazione; sul telefono con Google Play Services aggiornati apri **Google Drive → Collega Google Drive** e scegli l’account test autorizzato.
-8. Naviga nelle cartelle e seleziona un file audio. La coda comprende i file audio della cartella aperta (non attraversa ricorsivamente le sottocartelle). La ricerca Drive cerca per nome in tutti i file audio e le cartelle accessibili nell’unità dell’utente.
+8. Al primo accesso **Google Drive** mostra «Scegli cartelle musicali»: sfoglia Drive e premi **Usa questa cartella** nelle cartelle con le canzoni. Da quel momento il menu Drive elenca soltanto le cartelle scelte (e le loro sottocartelle); **Gestisci cartelle** permette di aggiungerne o rimuoverne. Seleziona un file audio per riprodurlo. La coda comprende i file audio della cartella aperta (non attraversa ricorsivamente le sottocartelle). La ricerca cerca per nome soltanto nella cartella aperta.
+
+**Limite importante:** la scelta delle cartelle è una restrizione dell’app, non di Google. Il consenso OAuth resta `drive.readonly` su tutto l’account, perché Google non offre uno scope limitato a cartelle scelte e `drive.file` non consente di leggere il contenuto di cartelle preesistenti. Durante la scelta l’app elenca i nomi delle cartelle del tuo Drive; non salva né riproduce brani fuori dalle cartelle scelte. Per un isolamento reale, usa un account Google dedicato o una cartella condivisa con quell’account.
 
 Se ricompili con una chiave diversa devi registrare il nuovo SHA-1, ottenibile con:
 
@@ -90,13 +93,33 @@ I download sono facoltativi, controllano `capabilities.canDownload`, usano file 
 
 Drive non espone tag ID3 né copertine audio nelle normali risposte Files: viene mostrato il nome del file, «Google Drive» come artista e il nome della cartella come album. I tag incorporati dei file cloud non vengono estratti. I formati riproducibili dipendono da Android/Media3 e dal contenitore.
 
-## Spotify: scelta e limiti verificabili
+### Drive senza account: chiave API e link di cartella condivisa
 
-La sezione offre **Apri app Spotify** (con fallback al sito) e **Apri Spotify nel browser** tramite Android Custom Tabs. Il lettore locale viene messo in pausa prima dell’apertura. Indietro dal browser/app riporta a Jarvis; MENU esce dalla sezione. La sessione è gestita da Spotify e dal browser, non da cookie copiati nell’app.
+1. In Google Cloud abilita **Google Drive API** e crea una **chiave API** (Credenziali → Crea credenziali → Chiave API). Consigliato limitarla all’API Google Drive. Se la leghi anche all’app Android servono package `it.jarvis.ipod` e SHA-1 della firma (cambia a ogni nuova firma): Jarvis invia `X-Android-Package` e `X-Android-Cert`.
+2. In Jarvis: **Google Drive → API di Google Drive** e incolla la chiave.
+3. Su Drive condividi la cartella con **«Chiunque abbia il link»** (Visualizzatore), copia il link e in **Google Drive** tocca **Cartella condivisa** (anche il solo ID funziona). I due pulsanti sono sempre in cima al menu Drive; la cartella resta salvata (DataStore e backup su file).
 
-La [documentazione del Web Player](https://support.spotify.com/us/article/web-player-help/) elenca Chrome, Samsung Internet e Firefox su Android; non garantisce WebView. Non è stato verificato login + riproduzione Spotify in WebView con un account reale, quindi **non viene presentata una WebView come lettore funzionante**. Il supporto Widevine del telefono, da solo, non garantisce quello del player in un browser incorporato.
+Limiti: la chiave vede solo ciò che è condiviso con link (chi ha il link può leggere i file) e non permette di sfogliare l’intero Drive; con l’account collegato si usa invece il suo token. La chiave è una credenziale: finisce nel backup su file, da tenere in un posto privato.
 
-[App Remote](https://developer.spotify.com/documentation/android) controlla l’app Spotify installata e richiede registrazione sviluppatore e consenso; la documentazione lo descrive come SDK beta. Il [Web Playback SDK](https://developer.spotify.com/documentation/web-playback-sdk) richiede OAuth e un piano Premium compatibile. Nessuno dei due è necessario per aprire il servizio ufficiale e non è incluso in questa versione. **La Click Wheel non controlla Spotify**. Non sono usati scraping, API private o aggiramenti DRM. Login e riproduzione con account Spotify restano da verificare sul telefono; le funzionalità del servizio dipendono da browser, account e piano.
+## Spotify dentro Jarvis (App Remote)
+
+Dalla versione 1.1 Spotify si usa **senza uscire da Jarvis**, con l’SDK ufficiale [Spotify App Remote](https://developer.spotify.com/documentation/android) (AAR 0.8.0, Apache 2.0, in `app/libs/`, con Gson). L’app Spotify riproduce in background (audio, rete, cache e account restano suoi); Jarvis mostra brano e copertina, usa la stessa schermata del lettore e comanda play/pausa, precedente/successivo, cerca, casuale e ripeti, anche con la ruota. Si può riprendere la riproduzione o avviare un brano, album o playlist incollando un link «Condividi» o un URI `spotify:`.
+
+Configurazione (gratuita, una volta):
+1. Su [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) crea un’app (API: Android).
+2. Redirect URI: `jarvisipod://spotify-callback`.
+3. In *Android packages* aggiungi il pacchetto `it.jarvis.ipod` e l’impronta SHA-1 della firma dell’APK installato. Jarvis la mostra in **Spotify > Guida alla configurazione**. Ogni build del workflow GitHub genera una chiave debug nuova, quindi lo SHA-1 cambia a ogni APK: per non ripetere la registrazione serve una chiave stabile (vedi Firma).
+4. In Jarvis apri **Spotify > Imposta Client ID** e incolla il Client ID. La prima connessione mostra la schermata di autorizzazione di Spotify.
+
+Limiti: serve l’app Spotify installata; scegliere un brano preciso richiede **Premium**; le app in modalità sviluppo hanno i limiti di utenti e account del Dashboard Spotify. Il codice è compilato in CI ma **non è stato provato con un account Spotify reale**. Non sono usati scraping, API private o aggiramenti DRM; il Web Player in WebView non è usato. Si può ancora aprire l’app ufficiale dalla stessa sezione (esce da Jarvis).
+
+## Colore, alone, tasti e backup
+
+- **Midnight Black** è ora grafite metallico, con luci e ombre campionate dall'immagine di riferimento; **Silver Classic** resta disponibile. Il confronto visivo puntuale sul telefono non è stato eseguito.
+- La scocca occupa tutta l'altezza dello schermo e il testo del display non dipende dalla dimensione carattere di sistema.
+- La ruota e i tasti hanno un alone blu di base; in **Impostazioni > Colore alone** scegli un altro colore o spegnilo.
+- I tasti si possono toccare normalmente (vedi tabella Comandi). La ruota funziona in più, tranne in modalità «Solo tasti».
+- **Impostazioni > Backup impostazioni**: scegli una volta un file (anche su Google Drive) e Jarvis lo aggiorna da solo a ogni modifica con Client ID Spotify, cartelle Drive, tema, comandi, vibrazione e colore. Dopo una reinstallazione usa *Ripristina da file*. Nel file non ci sono token né password. Se la nuova installazione ha una firma diversa, l'SHA-1 va comunque registrato di nuovo in Google Cloud e Spotify.
 
 ## Compilazione
 
@@ -136,25 +159,3 @@ Senza queste variabili `assembleRelease` produce un APK **non firmato**, non ins
 I risultati effettivi, le immagini dell’emulatore e le verifiche ancora necessarie sono riportati in [docs/VERIFICA.md](docs/VERIFICA.md). Non sono inclusi dati, musica commerciale, account o credenziali di test.
 
 L’aspetto è ottimizzato per un display verticale con proporzioni del Pixel 9 Pro XL. Scocca e ruota si riducono proporzionalmente su schermi piccoli o orizzontali; il display rispetta gli inset del sistema. Test su Pixel fisico, Bluetooth, chiamate e politiche energetiche dei diversi produttori rimangono necessari.
-
-
-## Drive senza account: chiave API e cartelle condivise
-
-In alternativa a OAuth, dal menu *Impostazioni → Drive con chiave API* (o *Google Drive → Usa chiave API…*) si può leggere soltanto ciò che è condiviso con «Chiunque abbia il link».
-
-1. Abilita la Drive API: https://console.cloud.google.com/apis/library/drive.googleapis.com
-2. Crea una chiave API nello stesso progetto: https://console.cloud.google.com/apis/credentials (limitala alla sola Drive API; una restrizione «app Android» fa rifiutare le richieste).
-3. Incolla la chiave nell'app. Resta solo nello spazio privato del telefono (`allowBackup=false`) e non viene committata.
-4. Su Drive condividi la cartella con «Chiunque abbia il link» (Visualizzatore) e incolla il link nell'app. I link con `resourcekey` sono gestiti tramite l'header `X-Goog-Drive-Resource-Keys`.
-5. *Verifica collegamento* elenca la prima cartella usando soltanto la chiave.
-
-Se è collegato anche un account Google, l'app usa l'account. Non verificato con un Drive reale: la lettura di file condivisi con chiave API segue il comportamento documentato delle API Google, ma l'esito va controllato con *Verifica collegamento*.
-
-## Alone neon e aggiornamenti (1.1.1)
-
-Vedi [note di aggiornamento e prima migrazione](docs/NEON-UPDATE.md). La firma delle
-pubblicazioni usa soltanto il Secret permanente `JARVIS_KEYSTORE_B64`, senza cache
-come fonte della chiave e senza rigenerazione automatica. Conservare una copia privata.
-Per compilazioni locali di aggiornamento importare quella stessa chiave nel percorso
-ignorato `signing/debug.keystore` e usare `-PjarvisVersionCode=NUMERO_SUPERIORE`.
-Il valore locale predefinito 1000 serve ai test, non alla distribuzione sopra gli APK CI.

@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
@@ -50,10 +51,18 @@ jobs:
           echo "JARVIS_VERSION_CODE=$code" >> "$GITHUB_ENV"
           echo "code=$code" >> "$GITHUB_OUTPUT"
       - name: Compila APK, test JVM, test strumentali e Lint
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          ./gradlew :app:assembleDebug -PjarvisVersionCode=1000
-          mkdir -p compatibility-fixtures
-          cp app/build/outputs/apk/debug/app-debug.apk compatibility-fixtures/upgrade-from.apk
+          mkdir -p compatibility-fixtures/reference
+          if gh run download 41215412751 --repo "$GITHUB_REPOSITORY" --name Jarvis-iPod-debug --dir compatibility-fixtures/reference; then
+            cp compatibility-fixtures/reference/app-debug.apk compatibility-fixtures/upgrade-from.apk
+            echo '1102878644d1f312fb708a5ae922e2b1c73ac4da6909cd3237621609e4fee24d  compatibility-fixtures/upgrade-from.apk' | sha256sum -c -
+          else
+            # The historical artifact may expire; future runs can still test replacement installs.
+            ./gradlew :app:assembleDebug -PjarvisVersionCode=1000
+            cp app/build/outputs/apk/debug/app-debug.apk compatibility-fixtures/upgrade-from.apk
+          fi
           ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:lintDebug
       - name: Verifica firma permanente e compatibilità metadati
         if: github.event_name != 'pull_request'
@@ -62,20 +71,7 @@ jobs:
           grep -q 'SHA-256 digest: ce1795e9a6411a90731a6c31be2c9d6604ae4ff6e151c5a5859d85f74208edb5' signing-report.txt
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | head -1 | tee package-report.txt
           grep -q "name='it.jarvis.ipod' versionCode='$JARVIS_VERSION_CODE'" package-report.txt
-          git diff --exit-code dc98099 -- app/src/main/res/values app/src/main/res/xml app/src/main/java/it/jarvis/ipod/drive app/src/main/java/it/jarvis/ipod/data/Library.kt
-          python3 - <<'PY_ICON'
-          import subprocess, xml.etree.ElementTree as ET
-          path = 'app/src/main/AndroidManifest.xml'
-          original = ET.fromstring(subprocess.check_output(['git', 'show', 'dc98099:' + path]))
-          current = ET.parse(path).getroot()
-          android = '{http://schemas.android.com/apk/res/android}'
-          app = current.find('application')
-          assert app.get(android + 'icon') == '@mipmap/ic_launcher'
-          assert app.get(android + 'roundIcon') == '@mipmap/ic_launcher'
-          app.set(android + 'icon', '@drawable/ic_launcher')
-          app.attrib.pop(android + 'roundIcon')
-          assert ET.tostring(original) == ET.tostring(current), 'Unexpected manifest changes beyond launcher icons'
-          PY_ICON
+          git diff --exit-code 7adfd7d -- app/src/main/res app/src/main/AndroidManifest.xml app/src/main/java/it/jarvis/ipod/drive app/src/main/java/it/jarvis/ipod/spotify app/src/main/java/it/jarvis/ipod/ui/ShellPalette.kt app/src/main/java/it/jarvis/ipod/ui/Haptics.kt app/src/main/java/it/jarvis/ipod/PlayerViewModel.kt app/src/main/java/it/jarvis/ipod/MainActivity.kt app/src/main/java/it/jarvis/ipod/JarvisApp.kt app/src/main/java/it/jarvis/ipod/data/Library.kt app/libs
       - uses: actions/upload-artifact@v4
         with:
           name: Jarvis-iPod-build
@@ -152,10 +148,10 @@ jobs:
           python3 - <<'PY'
           import json, os, re
           for release in json.load(open('releases.json')):
-              match = re.fullmatch(r'v1\.1\.1-build(\d+)', release['tagName'])
+              match = re.fullmatch(r'v1\.1\.[12]-build(\d+)', release['tagName'])
               if match and int(match[1]) >= int(os.environ['JARVIS_VERSION_CODE']):
                   raise SystemExit('Versione non crescente: pubblicazione interrotta')
           PY
-          gh release create "v1.1.1-build$JARVIS_VERSION_CODE" Jarvis-iPod-debug.apk SHA256SUMS \
-            --target "$GITHUB_SHA" --latest --title "Jarvis iPod 1.1.1 — Icona Robot DJ" \
-            --notes-file docs/ICON-UPDATE.md
+          gh release create "v1.1.2-build$JARVIS_VERSION_CODE" Jarvis-iPod-debug.apk SHA256SUMS \
+            --target "$GITHUB_SHA" --latest --title "Jarvis iPod 1.1.2 — Base originale build 115 e neon" \
+            --notes-file docs/BASE-115-NEON.md

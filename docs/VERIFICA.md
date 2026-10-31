@@ -47,14 +47,20 @@ Una successiva traccia ANR ha individuato un blocco in `PlaybackService.onDestro
 - Media3/MediaSession con servizio di riproduzione, audio focus, notifica e controlli multimediali di sistema.
 - Ripristino della coda e della posizione in pausa.
 - OAuth Google ufficiale; cartelle e ricerca Drive API v3, streaming, cache e download facoltativi.
-- Apertura di Spotify nell’app ufficiale o tramite Custom Tab.
+- Spotify dentro Jarvis tramite App Remote SDK (codice compilato in CI; non provato con un account).
+- Tema Midnight Black in grafite (colori campionati dal riferimento), scocca a tutta altezza, alone colorato di ruota e tasti (blu di base, colore a scelta in Impostazioni), tasti MENU (su) e basso (giù), centro che avvia/mette in pausa il brano, MENU tenuto premuto per tornare indietro, Drive con chiave API e link di cartella condivisa, scorciatoie Drive e Spotify nella libreria, interfaccia indipendente dalla dimensione carattere di sistema, backup su file di Client ID, cartelle Drive e preferenze (compilazione in CI; non visti né provati su telefono).
+- Nuova grafica (barra di stato, menu, griglie, lettore, schermata iniziale), ruota con scia luminosa e animazioni, modalità «Solo tasti», vibrazione a 4 livelli (codice compilato in CI; non visto né provato su telefono).
 
 L’elenco indica presenza del codice: per le integrazioni esterne non equivale a una verifica con account reali.
 
 ## Verifiche che richiedono account o hardware
 
 - **Drive:** configurazione Google Cloud con package e SHA-1, consenso, elenco di cartelle reali, streaming, download remoto e rinnovo dei token. Non sono disponibili account o credenziali di test in questa sessione.
-- **Spotify:** login e ascolto con account reale nell’app ufficiale/browser. Non sono stati verificati. Non viene fornito un Web Player incorporato dichiarato funzionante e non sono previsti comandi Spotify dalla ruota.
+- **Spotify:** connessione App Remote, autorizzazione, comandi, copertina e avvio da link con un account reale (Premium per i brani singoli). Non verificati. La build 1.1 supera compilazione, test JVM e Lint su GitHub Actions, ma nessun test strumentale è stato eseguito.
+- **Grafica e vibrazione:** resa visiva su schermo reale, fluidità delle animazioni della ruota, intensità e ritmo della vibrazione sul Pixel 9 Pro XL, comportamento con «Feedback tattile» di sistema disattivato.
+- **Drive con chiave API e link:** nessuna prova con una chiave e una cartella condivisa reali; il test JVM verifica solo il riconoscimento dei link. Il test strumentale JarvisDeviceTest è stato adeguato (MENU non torna più indietro) ma compilato soltanto, non eseguito.
+- **Fedeltà del colore grafite:** i valori sono stati campionati dall’immagine di riferimento (griglia 18×30 e bordo), ma il confronto visivo con il riferimento sul telefono non è stato eseguito: non si può dichiarare «identico».
+- **Backup:** salvataggio automatico e ripristino con il selettore file di Android (anche su Google Drive) non provati su dispositivo; il test JVM verifica solo la serializzazione.
 - **Pixel 9 Pro XL fisico:** qualità tattile, fluidità reale, cuffie Bluetooth, chiamate, lock screen, risparmio energetico e comportamento con diversi file/container.
 - **Rete:** interruzioni e ripresa dello streaming Drive con un file remoto autorizzato.
 

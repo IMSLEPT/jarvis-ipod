@@ -26,13 +26,19 @@ class MainActivity : ComponentActivity() {
                 .onFailure { model.message.value = "Autorizzazione Google non riuscita: ${it.localizedMessage}" }
         } else model.message.value = "Collegamento Google annullato"
     }
+    private val createBackup = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::saveBackup) }
+    private val openBackup = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::restoreBackup) }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
-        setContent { JarvisUI(model, ::requestAudio, ::connectDrive) }
+        setContent {
+            JarvisUI(model, ::requestAudio, ::connectDrive,
+                saveBackup = { createBackup.launch("jarvis-backup.json") },
+                restoreBackup = { openBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) })
+        }
         if (audioGranted()) model.scan()
     }
     private fun audioPermission() = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE

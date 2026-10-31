@@ -27,11 +27,10 @@ android {
         applicationId = "it.jarvis.ipod"
         minSdk = 26
         targetSdk = 35
-        // Cresce a ogni build di GitHub Actions, così Android la tratta come aggiornamento della precedente.
+        // Cresce a ogni esecuzione del workflow: Android accetta solo aggiornamenti con versionCode uguale o superiore.
         versionCode = (providers.gradleProperty("jarvisVersionCode").orNull
             ?: System.getenv("JARVIS_VERSION_CODE"))?.toIntOrNull() ?: 1000
-        require((versionCode ?: 0) in 1000..2_100_000_000) { "Use a versionCode >= 1000; published versions must increase." }
-        versionName = "1.1.1"
+        versionName = "1.1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
@@ -75,7 +74,11 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.browser:browser:1.8.0")
+    // Spotify App Remote SDK 0.8.0 (Apache 2.0): AAR ufficiale in app/libs, richiede Gson a runtime.
+    implementation(files("libs/spotify-app-remote-release-0.8.0.aar"))
+    implementation("com.google.code.gson:gson:2.10.1")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
