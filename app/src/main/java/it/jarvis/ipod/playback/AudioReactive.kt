@@ -5,65 +5,46 @@ import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.audio.TeeAudioProcessor
 import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import kotlin.math.PI
 import kotlin.math.exp
-import kotlin.math.sqrt
 
-/** Livelli audio condivisi tra il lettore (thread audio) e l'interfaccia. Non richiede alcun permesso. */
+/** Audio-thread output only; no microphone, permissions, file writes or audio modification. */
 object AudioReactive {
-    @Volatile var rawLevel = 0f
-    @Volatile var beatAt = 0L
-    @Volatile var beatStrength = 0f
-    @Volatile var bufferAt = 0L
+    @Volatile var enabled = true
+    @Volatile var playing = false
+    @Volatile var playerVolume = 1f
+    @Volatile private var rawLevel = 0f
+    @Volatile private var beatAt = 0L
+    @Volatile private var beatStrength = 0f
+    @Volatile private var bufferAt = 0L
 
-    /** Volume corrente 0..1; zero se il lettore non sta producendo audio. */
-    fun level(now: Long): Float = if (now - bufferAt > 400) 0f else rawLevel
-    /** Impulso del colpo di basso: 1 sul beat, poi decade in ~0,2 s. */
-    fun beat(now: Long): Float = if (beatAt == 0L) 0f else beatStrength * exp(-(now - beatAt) / 170f)
+    fun reset() { rawLevel = 0f; beatStrength = 0f; beatAt = 0L; bufferAt = 0L }
+    fun level(now: Long): Float = if (!enabled || !playing || now - bufferAt > 400) 0f else rawLevel
+    fun beat(now: Long): Float = if (!enabled || !playing || beatAt == 0L || now - bufferAt > 400) 0f
+        else beatStrength * exp(-(now - beatAt).coerceAtLeast(0) / 170f)
+    fun accept(meter: BassDetector.Meter, now: Long) {
+        rawLevel = meter.level
+        if (meter.beat > 0f) { beatStrength = meter.beat; beatAt = now }
+        bufferAt = now
+    }
 }
 
-/** Ascolta i campioni PCM che ExoPlayer sta per riprodurre: volume e battiti dai bassi (< ~140 Hz). */
 @androidx.annotation.OptIn(UnstableApi::class)
 class BeatAnalyzer : TeeAudioProcessor.AudioBufferSink {
+    private val detector = BassDetector()
+    private var encoding = C.ENCODING_PCM_16BIT
+    private var wasEnabled = true
     private var rate = 44100
     private var channels = 2
-    private var encoding = C.ENCODING_PCM_16BIT
-    private var low = 0f
-    private var average = 0f
-    private var lastBeat = 0L
 
     override fun flush(sampleRateHz: Int, channelCount: Int, encoding: Int) {
-        rate = sampleRateHz.coerceAtLeast(8000); channels = channelCount.coerceAtLeast(1); this.encoding = encoding; low = 0f
+        rate = sampleRateHz; channels = channelCount; this.encoding = encoding
+        detector.reset(rate, channels); AudioReactive.reset()
     }
 
     override fun handleBuffer(buffer: ByteBuffer) {
-        val bytes = when (encoding) { C.ENCODING_PCM_16BIT -> 2; C.ENCODING_PCM_FLOAT -> 4; else -> return }
-        val data = buffer.asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN)
-        val frames = data.remaining() / (bytes * channels)
-        if (frames <= 0) return
-        val alpha = (1.0 - exp(-2.0 * PI * 140.0 / rate)).toFloat()
-        var lowSum = 0.0
-        var allSum = 0.0
-        repeat(frames) {
-            var mono = 0f
-            repeat(channels) { mono += if (bytes == 2) data.getShort() / 32768f else data.getFloat() }
-            mono /= channels
-            low += alpha * (mono - low)
-            lowSum += low * low
-            allSum += mono * mono
-        }
-        val lowRms = sqrt(lowSum / frames).toFloat()
-        val rms = sqrt(allSum / frames).toFloat()
-        val now = SystemClock.uptimeMillis()
-        // Media mobile (~1 s) del livello dei bassi: un battito è un picco chiaramente sopra la media.
-        average += (frames.toFloat() / rate).coerceAtMost(1f) * (lowRms - average)
-        if (lowRms > average * 1.35f + 0.015f && now - lastBeat > 170) {
-            lastBeat = now
-            AudioReactive.beatStrength = ((lowRms - average) / (average + 0.05f) + 0.4f).coerceIn(0.45f, 1f)
-            AudioReactive.beatAt = now
-        }
-        AudioReactive.rawLevel = (rms * 3f).coerceIn(0f, 1f)
-        AudioReactive.bufferAt = now
+        if (!AudioReactive.enabled) { wasEnabled = false; return }
+        if (!wasEnabled) { detector.reset(rate, channels); wasEnabled = true }
+        if (encoding != C.ENCODING_PCM_16BIT && encoding != C.ENCODING_PCM_FLOAT) return
+        detector.read(buffer, encoding == C.ENCODING_PCM_FLOAT) { AudioReactive.accept(it, SystemClock.uptimeMillis()) }
     }
 }

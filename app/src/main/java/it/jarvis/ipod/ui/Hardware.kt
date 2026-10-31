@@ -1,6 +1,12 @@
 package it.jarvis.ipod.ui
 
 import android.graphics.Bitmap
+import android.media.AudioManager
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,7 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import it.jarvis.ipod.data.Settings
 import kotlinx.coroutines.withTimeoutOrNull
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import kotlin.math.hypot
 import kotlin.random.Random
 
@@ -59,9 +65,23 @@ fun IPodShell(settings: Settings, modifier: Modifier = Modifier, display: @Compo
         ShaderBrush(ImageShader(bitmap, TileMode.Repeated, TileMode.Repeated))
     }
     val neon = remember { NeonState() }
-    LaunchedEffect(settings.neon) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val audioManager = LocalContext.current.getSystemService(AudioManager::class.java)
+    LaunchedEffect(settings.neon, lifecycle) {
         if (!settings.neon) { neon.energy = 0f; return@LaunchedEffect }
-        while (true) withFrameNanos { neon.tick(it) }
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            var volume = 0f
+            var lastVolumeCheck = 0L
+            while (true) withInfiniteAnimationFrameNanos { frame ->
+                if (frame - lastVolumeCheck >= 150_000_000L) {
+                    val maximum = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                    volume = if (audioManager.isStreamMute(AudioManager.STREAM_MUSIC)) 0f
+                        else audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maximum
+                    lastVolumeCheck = frame
+                }
+                neon.tick(frame, volume)
+            }
+        }
     }
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         // Quasi a tutto schermo: margini minimi; sui telefoni più alti il corpo si allunga e il display guadagna spazio.
@@ -93,7 +113,7 @@ fun IPodShell(settings: Settings, modifier: Modifier = Modifier, display: @Compo
                     CompositionLocalProvider(LocalDensity provides Density(density.density, minOf(density.fontScale, 1f))) { display(scale) }
                 }
                 Spacer(Modifier.height(width * .045f))
-                ClickWheel(width * .608f, settings, neon, { neon.kick(); onStep(it) }, { neon.kick(); onButton(it) }, { neon.kick(); onHold(it) })
+                ClickWheel(width * .608f, settings, neon, { if (settings.neon) neon.kick(it); onStep(it) }, { if (settings.neon) neon.kick(); onButton(it) }, { if (settings.neon) neon.kick(); onHold(it) })
                 Spacer(Modifier.height(width * .035f))
             }
         }
@@ -155,10 +175,12 @@ private fun ClickWheel(diameter: Dp, settings: Settings, neon: NeonState, onStep
             val e = if (glow) neon.energy else 0f
             if (glow) {
                 // Alone esterno: anelli sempre più deboli verso fuori, che si allargano con la musica.
-                for (i in 0 until 10) {
-                    val f = i / 10f
-                    drawCircle(c1.copy(alpha = ((.10f + .24f * e) * (1f - f)).coerceIn(0f, 1f)),
-                        radius = r + (3f + i * 1.6f * (1f + e * .5f)) * unit, style = Stroke(3.4f * unit))
+                clipRect(left = -r, top = -size.width * .06f, right = size.width + r, bottom = size.height + r) {
+                    for (i in 0 until 10) {
+                        val f = i / 10f
+                        drawCircle(c1.copy(alpha = ((.10f + .24f * e) * (1f - f)).coerceIn(0f, 1f)),
+                            radius = r + (3f + i * 1.6f * (1f + e * .5f)) * unit, style = Stroke(3.4f * unit))
+                    }
                 }
             }
             drawCircle(Brush.linearGradient(if (settings.midnight) listOf(Color(0xFF22262D), Color(0xFF0C1016)) else listOf(Color(0xFFF6F6F3), Color(0xFFE0E2E1))))
@@ -177,6 +199,15 @@ private fun ClickWheel(diameter: Dp, settings: Settings, neon: NeonState, onStep
                         radius = r * .387f + (2f + i * 1.7f * (1f + e * .6f)) * unit, style = Stroke(2.2f * unit))
                 }
                 drawCircle(c2.copy(alpha = .75f + .25f * e), radius = r * .387f + 1.2f * unit, style = Stroke((1.3f + 1.4f * e) * unit))
+                // Soft light behind the four existing glyphs; no extra buttons or layout changes.
+                for ((index, point) in listOf(Offset(r, r * .15f), Offset(r * .15f, r),
+                    Offset(r * 1.85f, r), Offset(r, r * 1.85f)).withIndex()) {
+                    val tint = Color.hsv((neon.hue + index * 32f) % 360f, .85f, 1f)
+                    val spread = r * (.14f + e * .10f)
+                    drawCircle(Brush.radialGradient(listOf(tint.copy(alpha = .16f + e * .45f),
+                        tint.copy(alpha = .07f + e * .20f), Color.Transparent), center = point, radius = spread),
+                        radius = spread, center = point)
+                }
             }
         }
         fun Modifier.control(name: String, label: String) = semantics {

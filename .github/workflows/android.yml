@@ -1,15 +1,23 @@
 name: Android
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version-code: ${{ steps.version.outputs.code }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -19,25 +27,121 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
-      # Mantiene la stessa firma tra le build (la cache può scadere dopo giorni di inattività).
-      - uses: actions/cache@v4
-        with:
-          path: signing/debug.keystore
-          key: jarvis-debug-keystore-v1
-      - run: ./scripts/create-debug-key.sh
-      - run: ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Jarvis-iPod-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-      - name: Pubblica APK nelle Releases
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Ripristina la firma permanente dai Secrets
+        if: github.event_name != 'pull_request'
+        env:
+          JARVIS_KEYSTORE_B64: ${{ secrets.JARVIS_KEYSTORE_B64 }}
+        run: |
+          umask 077
+          test -n "$JARVIS_KEYSTORE_B64" || { echo 'Manca il Secret JARVIS_KEYSTORE_B64. Nessuna nuova chiave viene generata.'; exit 1; }
+          mkdir -p signing
+          printf '%s' "$JARVIS_KEYSTORE_B64" | base64 --decode > signing/debug.keystore
+      - name: Firma temporanea soltanto per i test delle pull request
+        if: github.event_name == 'pull_request'
+        run: ./scripts/create-debug-key.sh
+      - name: Numero versione crescente
+        id: version
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk Jarvis-iPod-debug.apk
-          gh release create "v1.1.0-build${{ github.run_number }}" Jarvis-iPod-debug.apk \
-            --target "$GITHUB_SHA" --latest \
-            --title "Jarvis iPod 1.1.0 build ${{ github.run_number }}" \
-            --notes "Build automatica di ${GITHUB_SHA::7}: $(git log -1 --pretty=%s). Non provata su dispositivo."
+          # Timestamp monotono anche se il workflow viene ricreato o rieseguito.
+          code=$(($(date +%s) - 1577836800 + 1000))
+          echo "JARVIS_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+      - name: Compila APK, test JVM, test strumentali e Lint
+        run: |
+          ./gradlew :app:assembleDebug -PjarvisVersionCode=1000
+          mkdir -p compatibility-fixtures
+          cp app/build/outputs/apk/debug/app-debug.apk compatibility-fixtures/upgrade-from.apk
+          ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:lintDebug
+      - name: Verifica firma permanente e compatibilità metadati
+        if: github.event_name != 'pull_request'
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee signing-report.txt
+          grep -q 'SHA-256 digest: ce1795e9a6411a90731a6c31be2c9d6604ae4ff6e151c5a5859d85f74208edb5' signing-report.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | head -1 | tee package-report.txt
+          grep -q "name='it.jarvis.ipod' versionCode='$JARVIS_VERSION_CODE'" package-report.txt
+          git diff --exit-code dc98099 -- app/src/main/res app/src/main/AndroidManifest.xml app/src/main/java/it/jarvis/ipod/drive app/src/main/java/it/jarvis/ipod/data/Library.kt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-iPod-build
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            signing-report.txt
+            package-report.txt
+            compatibility-fixtures/upgrade-from.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Jarvis-iPod-checks
+          path: |
+            app/build/reports/
+            app/build/test-results/
+      - name: Rimuovi chiave dal runner
+        if: always()
+        run: rm -f signing/debug.keystore
+  device:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@v4
+        with:
+          name: Jarvis-iPod-build
+          path: artifacts
+      - name: Abilita KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test reali su emulatore Android 11 e aggiornamento con dati
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: aosp_atd
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/check-device.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Jarvis-iPod-device-checks
+          path: device-reports/
+  publish:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [build, device]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Jarvis-iPod-build
+          path: artifacts
+      - name: Pubblica APK verificato nelle Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          JARVIS_VERSION_CODE: ${{ needs.build.outputs.version-code }}
+        run: |
+          cp artifacts/app/build/outputs/apk/debug/app-debug.apk Jarvis-iPod-debug.apk
+          sha256sum Jarvis-iPod-debug.apk > SHA256SUMS
+          gh release list --json tagName,isLatest > releases.json
+          python3 - <<'PY'
+          import json, os, re
+          for release in json.load(open('releases.json')):
+              match = re.fullmatch(r'v1\.1\.1-build(\d+)', release['tagName'])
+              if match and int(match[1]) >= int(os.environ['JARVIS_VERSION_CODE']):
+                  raise SystemExit('Versione non crescente: pubblicazione interrotta')
+          PY
+          gh release create "v1.1.1-build$JARVIS_VERSION_CODE" Jarvis-iPod-debug.apk SHA256SUMS \
+            --target "$GITHUB_SHA" --latest --title "Jarvis iPod 1.1.1 — Alone neon" \
+            --notes-file docs/NEON-UPDATE.md

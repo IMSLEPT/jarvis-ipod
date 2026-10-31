@@ -34,7 +34,10 @@ class JarvisDeviceTest {
     private val app get() = context.applicationContext as JarvisApp
 
     @Test fun wheelNavigatesAndThemePersists() {
-        runBlocking { app.preferences.set(Preferences.midnight, false) }
+        runBlocking {
+            app.preferences.set(Preferences.midnight, false)
+            app.preferences.set(Preferences.neon, false)
+        }
         compose.waitForIdle()
         compose.onNodeWithTag("click-wheel").performTouchInput {
             val r = width * .40f
@@ -54,6 +57,25 @@ class JarvisDeviceTest {
         assertTrue(runBlocking { app.preferences.settings.first().midnight })
         compose.onNodeWithContentDescription("MENU, indietro").performClick()
         compose.onNodeWithText("Aspetto iPod").assertIsDisplayed()
+    }
+
+    @Test fun neonTogglePersistsWithoutChangingDriveOrTheme() {
+        val previous = runBlocking { app.preferences.settings.first() }
+        runBlocking { app.preferences.set(Preferences.neon, false) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Impostazioni").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Alone neon").performScrollTo().assertIsOff().performClick()
+        compose.waitUntil(10000) { runBlocking { app.preferences.settings.first().neon } }
+        compose.activityRule.scenario.recreate()
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Alone neon").performScrollTo().assertIsOn()
+        val current = runBlocking { app.preferences.settings.first() }
+        assertEquals(previous.midnight, current.midnight)
+        assertEquals(previous.apiKey, current.apiKey)
+        assertEquals(previous.folders, current.folders)
+        assertEquals(previous.driveEmail, current.driveEmail)
+        compose.onNodeWithContentDescription("Alone neon").performClick()
+        compose.waitUntil(10000) { runBlocking { !app.preferences.settings.first().neon } }
     }
 
 }

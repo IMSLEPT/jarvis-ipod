@@ -72,6 +72,11 @@ class PlaybackService : MediaSessionService() {
             setAudioAttributes(AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).setUsage(C.USAGE_MEDIA).build(), true)
             setHandleAudioBecomingNoisy(true)
             addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    AudioReactive.playing = isPlaying
+                    if (!isPlaying) AudioReactive.reset()
+                }
+                override fun onVolumeChanged(volume: Float) { AudioReactive.playerVolume = volume }
                 override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
                     if (!restoring && item != null) scope.launch { graph.dao.played(item.mediaId, System.currentTimeMillis()) }
                 }
@@ -98,6 +103,12 @@ class PlaybackService : MediaSessionService() {
                 }
             }).build()
         connectivity.registerDefaultNetworkCallback(networkCallback)
+        scope.launch {
+            graph.preferences.settings.collect {
+                AudioReactive.enabled = it.neon
+                if (!it.neon) AudioReactive.reset()
+            }
+        }
         scope.launch {
             restore()
             restoring = false
@@ -127,6 +138,8 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
     override fun onTaskRemoved(rootIntent: Intent?) { if (!player.playWhenReady) stopSelf() }
     override fun onDestroy() {
+        AudioReactive.playing = false
+        AudioReactive.reset()
         // Capture player state on its looper, then persist without blocking Android's
         // main thread. DataStore may already be processing a transform from that thread.
         if (::player.isInitialized && !restoring) {

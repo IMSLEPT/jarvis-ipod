@@ -23,6 +23,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.*
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
@@ -38,7 +40,7 @@ import kotlin.math.abs
 
 private data class Route(val type: String, val title: String, val arg: String = "")
 private data class Entry(val title: String, val icon: ImageVector = Icons.Rounded.ChevronRight,
-    val subtitle: String? = null, val color: Color = Ice, val track: Track? = null, val run: () -> Unit)
+    val subtitle: String? = null, val color: Color = Ice, val track: Track? = null, val toggle: Boolean? = null, val run: () -> Unit)
 
 @Composable
 fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> Unit) {
@@ -182,7 +184,7 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
         "settings" -> listOf(
             Entry("Aspetto iPod", Icons.Rounded.Palette, if (settings.midnight) "Midnight Black" else "Silver Classic") { push("appearance", "Aspetto iPod") },
             Entry("Sensibilità Click Wheel", Icons.Rounded.TouchApp, "${(settings.sensitivity * 100).toInt()}%") { push("sensitivity", "Click Wheel") },
-            Entry("Alone neon", Icons.Rounded.AutoAwesome, if(settings.neon) "Attivo · reagisce a musica e ruota" else "Disattivato") { vm.preference(Preferences.neon, !settings.neon) },
+            Entry("Alone neon", Icons.Rounded.AutoAwesome, if(settings.neon) "Attivo" else "Disattivato", toggle = settings.neon) { vm.preference(Preferences.neon, !settings.neon) },
             Entry("Feedback aptico", Icons.Rounded.Vibration, if(settings.haptics) "Attivo" else "Disattivato") { vm.preference(Preferences.haptics, !settings.haptics) },
             Entry("Account Google Drive", Icons.Rounded.AddToDrive, settings.driveEmail.ifBlank { "Non collegato" }) { push("account", "Account Google Drive") },
             Entry("Drive con chiave API", Icons.Rounded.VpnKey, if (settings.apiKey.isBlank()) "Non impostata" else "Chiave impostata · ${savedFolders.size} cartelle") { push("driveapi", "Drive con chiave API") },
@@ -391,7 +393,10 @@ private fun EntryList(entries: List<Entry>, selected: Int, scale: Float, modifie
                         Text(e.title, color = text, fontSize = (if(light) 13f else 14f).times(scale).sp, fontWeight = if(active) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if(e.subtitle != null) Text(e.subtitle, color = if(active) Color(0xFFDCEBFF) else Muted, fontSize = (11f * scale).sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
                     }
-                    if(queue) {
+                    if(e.toggle != null) {
+                        Switch(checked = e.toggle, onCheckedChange = { onSelect(index) },
+                            modifier = Modifier.semantics { contentDescription = e.title })
+                    } else if(queue) {
                         Icon(Icons.Rounded.ArrowUpward, "Sposta prima", Modifier.size(30.dp * scale).clickable { onMove(index) }.padding(5.dp), tint = text)
                         Icon(Icons.Rounded.Close, "Rimuovi dalla coda", Modifier.size(30.dp * scale).clickable { onRemove(index) }.padding(5.dp), tint = text)
                     } else if(e.track != null && onOptions != null) Icon(Icons.Rounded.MoreVert, "Opzioni ${e.title}", Modifier.size(32.dp * scale).clickable { onOptions(index) }.padding(5.dp), tint = text)

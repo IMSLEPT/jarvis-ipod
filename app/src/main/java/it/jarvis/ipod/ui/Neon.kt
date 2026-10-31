@@ -6,9 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
 import it.jarvis.ipod.playback.AudioReactive
-import kotlin.math.exp
-import kotlin.math.max
-import kotlin.math.min
+import kotlin.math.abs
 
 /**
  * Stato dell'alone neon: il colore scorre di continuo, l'intensità sale con i colpi di basso della
@@ -21,14 +19,17 @@ class NeonState {
     private var kickAt = 0L
     private var offset = 0f
 
-    fun kick() { kickAt = SystemClock.uptimeMillis(); offset += 28f }
+    fun kick(steps: Int = 1) {
+        kickAt = SystemClock.uptimeMillis()
+        offset = (offset + 43f * abs(steps).coerceAtLeast(1)) % 360f
+    }
 
-    fun tick(frameNanos: Long) {
+    fun tick(frameNanos: Long, volume: Float) {
         val now = SystemClock.uptimeMillis()
-        val nav = if (kickAt == 0L) 0f else exp(-(now - kickAt) / 230f)
+        val nav = if (kickAt == 0L) 0f else NeonMath.interaction(now - kickAt)
         val beat = AudioReactive.beat(now)
         val level = AudioReactive.level(now)
-        hue = ((frameNanos / 1_000_000_000.0) * 36.0 + offset + beat * 40.0).rem(360.0).toFloat()
-        energy = min(1f, max(nav * .9f, beat) + level * .25f)
+        hue = NeonMath.hue(frameNanos / 1_000_000_000.0, offset)
+        energy = NeonMath.energy(nav, beat, level, volume * AudioReactive.playerVolume)
     }
 }

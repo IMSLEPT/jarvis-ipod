@@ -149,3 +149,12 @@ In alternativa a OAuth, dal menu *Impostazioni → Drive con chiave API* (o *Goo
 5. *Verifica collegamento* elenca la prima cartella usando soltanto la chiave.
 
 Se è collegato anche un account Google, l'app usa l'account. Non verificato con un Drive reale: la lettura di file condivisi con chiave API segue il comportamento documentato delle API Google, ma l'esito va controllato con *Verifica collegamento*.
+
+## Alone neon e aggiornamenti (1.1.1)
+
+Vedi [note di aggiornamento e prima migrazione](docs/NEON-UPDATE.md). La firma delle
+pubblicazioni usa soltanto il Secret permanente `JARVIS_KEYSTORE_B64`, senza cache
+come fonte della chiave e senza rigenerazione automatica. Conservare una copia privata.
+Per compilazioni locali di aggiornamento importare quella stessa chiave nel percorso
+ignorato `signing/debug.keystore` e usare `-PjarvisVersionCode=NUMERO_SUPERIORE`.
+Il valore locale predefinito 1000 serve ai test, non alla distribuzione sopra gli APK CI.
