@@ -38,6 +38,6 @@ jobs:
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk Jarvis-iPod-debug.apk
           gh release create "v1.1.0-build${{ github.run_number }}" Jarvis-iPod-debug.apk \
-            --target "$GITHUB_SHA" --prerelease \
+            --target "$GITHUB_SHA" --latest \
             --title "Jarvis iPod 1.1.0 build ${{ github.run_number }}" \
             --notes "Build automatica di ${GITHUB_SHA::7}: $(git log -1 --pretty=%s). Non provata su dispositivo."
