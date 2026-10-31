@@ -10,7 +10,7 @@ import java.io.IOException
 private val Context.jarvisDataStore by preferencesDataStore(name = "jarvis")
 data class Settings(val midnight: Boolean = false, val sensitivity: Float = 1f, val haptics: Boolean = true,
     val driveEmail: String = "", val sort: String = "Titolo", val cacheMb: Int = 256,
-    val apiKey: String = "", val folders: String = "[]")
+    val apiKey: String = "", val folders: String = "[]", val neon: Boolean = true)
 
 class Preferences(context: Context) {
     private val store = context.jarvisDataStore
@@ -21,6 +21,7 @@ class Preferences(context: Context) {
         val email = stringPreferencesKey("drive_email")
         val sort = stringPreferencesKey("sort")
         val cache = intPreferencesKey("cache_mb")
+        val neon = booleanPreferencesKey("neon")
         val apiKey = stringPreferencesKey("drive_api_key")
         val folders = stringPreferencesKey("drive_folders")
         val queue = stringPreferencesKey("queue")
@@ -31,7 +32,7 @@ class Preferences(context: Context) {
     }
     val data = store.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }
     val settings = data.map { Settings(it[midnight] ?: false, it[sensitivity] ?: 1f, it[haptics] ?: true,
-        it[email] ?: "", it[sort] ?: "Titolo", it[cache] ?: 256, it[apiKey] ?: "", it[folders] ?: "[]") }
+        it[email] ?: "", it[sort] ?: "Titolo", it[cache] ?: 256, it[apiKey] ?: "", it[folders] ?: "[]", it[neon] ?: true) }
     suspend fun <T> set(key: androidx.datastore.preferences.core.Preferences.Key<T>, value: T) { store.edit { it[key] = value } }
     suspend fun savePlayback(ids: List<String>, index: Int, pos: Long, shuffled: Boolean, repeated: Int) {
         store.edit {

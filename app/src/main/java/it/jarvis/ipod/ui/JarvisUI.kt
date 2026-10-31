@@ -182,6 +182,7 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
         "settings" -> listOf(
             Entry("Aspetto iPod", Icons.Rounded.Palette, if (settings.midnight) "Midnight Black" else "Silver Classic") { push("appearance", "Aspetto iPod") },
             Entry("Sensibilità Click Wheel", Icons.Rounded.TouchApp, "${(settings.sensitivity * 100).toInt()}%") { push("sensitivity", "Click Wheel") },
+            Entry("Alone neon", Icons.Rounded.AutoAwesome, if(settings.neon) "Attivo · reagisce a musica e ruota" else "Disattivato") { vm.preference(Preferences.neon, !settings.neon) },
             Entry("Feedback aptico", Icons.Rounded.Vibration, if(settings.haptics) "Attivo" else "Disattivato") { vm.preference(Preferences.haptics, !settings.haptics) },
             Entry("Account Google Drive", Icons.Rounded.AddToDrive, settings.driveEmail.ifBlank { "Non collegato" }) { push("account", "Account Google Drive") },
             Entry("Drive con chiave API", Icons.Rounded.VpnKey, if (settings.apiKey.isBlank()) "Non impostata" else "Chiave impostata · ${savedFolders.size} cartelle") { push("driveapi", "Drive con chiave API") },

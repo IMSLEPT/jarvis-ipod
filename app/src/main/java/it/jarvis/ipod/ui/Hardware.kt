@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import it.jarvis.ipod.data.Settings
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.runtime.withFrameNanos
 import kotlin.math.hypot
 import kotlin.random.Random
 
@@ -56,6 +57,11 @@ fun IPodShell(settings: Settings, modifier: Modifier = Modifier, display: @Compo
         }
         val bitmap = Bitmap.createBitmap(pixels, 64, 64, Bitmap.Config.ARGB_8888).asImageBitmap()
         ShaderBrush(ImageShader(bitmap, TileMode.Repeated, TileMode.Repeated))
+    }
+    val neon = remember { NeonState() }
+    LaunchedEffect(settings.neon) {
+        if (!settings.neon) { neon.energy = 0f; return@LaunchedEffect }
+        while (true) withFrameNanos { neon.tick(it) }
     }
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         // Quasi a tutto schermo: margini minimi; sui telefoni più alti il corpo si allunga e il display guadagna spazio.
@@ -87,7 +93,7 @@ fun IPodShell(settings: Settings, modifier: Modifier = Modifier, display: @Compo
                     CompositionLocalProvider(LocalDensity provides Density(density.density, minOf(density.fontScale, 1f))) { display(scale) }
                 }
                 Spacer(Modifier.height(width * .045f))
-                ClickWheel(width * .608f, settings, onStep, onButton, onHold)
+                ClickWheel(width * .608f, settings, neon, { neon.kick(); onStep(it) }, { neon.kick(); onButton(it) }, { neon.kick(); onHold(it) })
                 Spacer(Modifier.height(width * .035f))
             }
         }
@@ -95,7 +101,7 @@ fun IPodShell(settings: Settings, modifier: Modifier = Modifier, display: @Compo
 }
 
 @Composable
-private fun ClickWheel(diameter: Dp, settings: Settings, onStep: (Int) -> Unit, onButton: (String) -> Unit, onHold: (String) -> Unit) {
+private fun ClickWheel(diameter: Dp, settings: Settings, neon: NeonState, onStep: (Int) -> Unit, onButton: (String) -> Unit, onHold: (String) -> Unit) {
     val step by rememberUpdatedState(onStep)
     val button by rememberUpdatedState(onButton)
     val hold by rememberUpdatedState(onHold)
@@ -143,6 +149,18 @@ private fun ClickWheel(diameter: Dp, settings: Settings, onStep: (Int) -> Unit, 
         Canvas(Modifier.fillMaxSize()) {
             val r = size.width / 2
             val unit = size.width / 244f
+            val glow = settings.neon
+            val c1 = Color.hsv(neon.hue, .85f, 1f)
+            val c2 = Color.hsv((neon.hue + 55f) % 360f, .85f, 1f)
+            val e = if (glow) neon.energy else 0f
+            if (glow) {
+                // Alone esterno: anelli sempre più deboli verso fuori, che si allargano con la musica.
+                for (i in 0 until 10) {
+                    val f = i / 10f
+                    drawCircle(c1.copy(alpha = ((.10f + .24f * e) * (1f - f)).coerceIn(0f, 1f)),
+                        radius = r + (3f + i * 1.6f * (1f + e * .5f)) * unit, style = Stroke(3.4f * unit))
+                }
+            }
             drawCircle(Brush.linearGradient(if (settings.midnight) listOf(Color(0xFF22262D), Color(0xFF0C1016)) else listOf(Color(0xFFF6F6F3), Color(0xFFE0E2E1))))
             drawCircle(Color.Black.copy(alpha = .28f), style = Stroke(unit))
             drawCircle(Color.White.copy(alpha = .17f), radius = r - 1.5f * unit, style = Stroke(unit))
@@ -151,6 +169,15 @@ private fun ClickWheel(diameter: Dp, settings: Settings, onStep: (Int) -> Unit, 
             drawCircle(Color.Black.copy(alpha = .36f), radius = r * .387f, style = Stroke(unit))
             drawCircle(Color.White.copy(alpha = .36f), radius = r * .387f - 1.3f * unit, style = Stroke(.7f * unit))
             if (pressed == "select") drawCircle(Color.Black.copy(alpha = .09f), radius = r * .385f)
+            if (glow) {
+                // Filo neon sul bordo della ruota e attorno al tasto centrale, con riverbero.
+                drawCircle(c1.copy(alpha = .62f + .38f * e), radius = r - .8f * unit, style = Stroke((1.5f + 1.8f * e) * unit))
+                for (i in 0 until 5) {
+                    drawCircle(c2.copy(alpha = ((.30f + .35f * e) * (1f - i / 5f)).coerceIn(0f, 1f)),
+                        radius = r * .387f + (2f + i * 1.7f * (1f + e * .6f)) * unit, style = Stroke(2.2f * unit))
+                }
+                drawCircle(c2.copy(alpha = .75f + .25f * e), radius = r * .387f + 1.2f * unit, style = Stroke((1.3f + 1.4f * e) * unit))
+            }
         }
         fun Modifier.control(name: String, label: String) = semantics {
             contentDescription = label; role = Role.Button
