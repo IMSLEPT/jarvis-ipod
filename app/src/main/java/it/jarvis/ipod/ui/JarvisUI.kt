@@ -23,11 +23,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import it.jarvis.ipod.Playback
 import it.jarvis.ipod.PlayerViewModel
 import it.jarvis.ipod.data.DriveFolder
 import it.jarvis.ipod.data.Playlist
 import it.jarvis.ipod.data.Preferences
 import it.jarvis.ipod.data.Track
+import it.jarvis.ipod.spotify.SpotifyBridge
+import it.jarvis.ipod.spotify.SpotifyStatus
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
@@ -65,6 +68,15 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
     val context = LocalContext.current
     val haptics = rememberHaptics(settings.hapticLevel)
     val controls = remember(vm) { PlayerControls(vm::seekTo, vm::shuffle, vm::previous, vm::togglePlay, vm::next, vm::repeat) }
+    val spotify = vm.graph.spotify
+    val sp by spotify.state.collectAsStateWithLifecycle()
+    var clientDialog by remember { mutableStateOf(false) }
+    var clientText by remember { mutableStateOf("") }
+    var linkDialog by remember { mutableStateOf(false) }
+    var linkText by remember { mutableStateOf("") }
+    val spotifyControls = remember(spotify) { PlayerControls(spotify::seekTo, spotify::shuffle, spotify::previous, spotify::toggle, spotify::next, spotify::repeat) }
+    val spotifyPlayback = Playback(sp.status == SpotifyStatus.CONNECTED, sp.id, sp.title.ifBlank { "Spotify" }, sp.artist, sp.album, null,
+        sp.playing, false, sp.position, sp.duration, sp.shuffle, sp.repeat, emptyList(), null)
     fun push(type: String, title: String, arg: String = "") { routes += Route(type, title, arg) }
     fun back() { if (routes.size > 1 && routes.last().type != "lock") routes.removeAt(routes.lastIndex) }
     fun unlock() { if (routes.last().type == "lock") routes.removeAt(routes.lastIndex) }
@@ -81,6 +93,11 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             vm.loadDrive(route.arg.ifBlank { "root" }, query, route.title, pick = drivePick)
         }
     }
+    LaunchedEffect(Unit) { spotify.errors.collect { vm.message.value = it } }
+    LaunchedEffect(route.type, settings.spotifyClientId) {
+        if ((route.type == "spotify" || route.type == "spotifyplaying") && settings.spotifyClientId.isNotBlank()) spotify.connect(context, settings.spotifyClientId)
+    }
+    DisposableEffect(Unit) { onDispose { spotify.disconnect() } }
     val sorted = remember(tracks, settings.sort) { when (settings.sort) {
         "Artista" -> tracks.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
         "Album" -> tracks.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.album })
@@ -89,7 +106,12 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
     } }
     val local = sorted.filter { it.source == "local" }
     val current = tracks.find { it.id == playing.id }
-    fun play(list: List<Track>, track: Track) { vm.play(list, track); push("playing", "In riproduzione") }
+    fun play(list: List<Track>, track: Track) { if (sp.playing) spotify.pause(); vm.play(list, track); push("playing", "In riproduzione") }
+    fun playSpotifyLink(text: String): Boolean {
+        val ok = spotify.playLink(text)
+        if (ok) { vm.pause(); push("spotifyplaying", "Spotify") }
+        return ok
+    }
     fun songs(values: List<Track>): List<Entry> = values.map { track ->
         Entry(track.title, Icons.Rounded.MusicNote, "${track.artist}${if (track.offlinePath != null) " · offline" else ""}", track = track) { play(values, track) }
     }
@@ -160,11 +182,25 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             })) + driveFiles.filter { it.folder }.map { f -> Entry(f.name, Icons.Rounded.Folder, "Apri") { push("drivepick", f.name, f.id) } }
         "drivemanage" -> listOf(Entry("Aggiungi cartella", Icons.Rounded.CreateNewFolder) { push("drivepick", "Scegli cartella", "root") }) +
             settings.driveFolders.map { f -> Entry(f.name, Icons.Rounded.Delete, "Tocca per rimuovere dall’elenco") { vm.removeDriveFolder(f.id) } }
-        "spotify" -> listOf(
-            Entry("Apri app Spotify", Icons.Rounded.OpenInNew, "Riproduzione nell’app ufficiale", SpotifyGreen) { launchSpotify(true) },
-            Entry("Apri Spotify nel browser", Icons.Rounded.Language, "Accesso tramite browser sicuro") { launchSpotify(false) },
-            Entry("Come funziona", Icons.Rounded.Info) { info = "Spotify viene aperto nell’app ufficiale o in una scheda del browser. Login, riproduzione e abbonamento sono gestiti da Spotify.\n\nWebView non è tra i browser Android supportati dichiarati. Login e riproduzione non sono stati verificati con un account in questo ambiente.\n\nLa Click Wheel controlla solo i brani locali e Drive. Torna qui con Indietro e premi MENU per uscire dalla sezione." }
-        )
+        "spotify" -> if (settings.spotifyClientId.isBlank()) listOf(
+            Entry("Imposta Client ID", Icons.Rounded.Edit, "Serve per collegare Spotify a Jarvis", SpotifyGreen) { clientText = ""; clientDialog = true },
+            Entry("Guida alla configurazione", Icons.Rounded.Info) { info = spotifyGuide(context, settings.spotifyClientId) },
+            Entry("Apri app Spotify", Icons.Rounded.OpenInNew, "Esce da Jarvis") { launchSpotify(true) }
+        ) else buildList<Entry> {
+            add(Entry(when (sp.status) { SpotifyStatus.CONNECTED -> "Collegato a Spotify"; SpotifyStatus.CONNECTING -> "Connessione in corso…"; else -> "Collega Spotify" },
+                Icons.Rounded.GraphicEq, if (sp.status == SpotifyStatus.CONNECTED) "L’audio resta nell’app Spotify, in background" else "Tocca per riprovare", SpotifyGreen) {
+                if (sp.status != SpotifyStatus.CONNECTED) spotify.connect(context, settings.spotifyClientId)
+            })
+            if (sp.status == SpotifyStatus.CONNECTED) {
+                if (sp.id != null) add(Entry(sp.title.ifBlank { "In riproduzione" }, Icons.Rounded.MusicNote, sp.artist.ifBlank { "Spotify" }, SpotifyGreen) { push("spotifyplaying", "Spotify") })
+                add(Entry("Riprendi riproduzione", Icons.Rounded.PlayArrow) { vm.pause(); spotify.resume(); push("spotifyplaying", "Spotify") })
+                add(Entry("Riproduci da un link", Icons.Rounded.Link, "Brano, album o playlist (Premium)") { linkText = ""; linkDialog = true })
+                add(Entry("Scollega da Jarvis", Icons.Rounded.PowerSettingsNew, "Spotify continua a suonare") { spotify.disconnect() })
+            }
+            add(Entry("Client ID", Icons.Rounded.Edit, value = settings.spotifyClientId.take(6) + "…") { clientText = settings.spotifyClientId; clientDialog = true })
+            add(Entry("Guida alla configurazione", Icons.Rounded.Info) { info = spotifyGuide(context, settings.spotifyClientId) })
+            add(Entry("Apri app Spotify", Icons.Rounded.OpenInNew, "Esce da Jarvis") { launchSpotify(true) })
+        }
         "settings" -> listOf(
             Entry("Aspetto iPod", Icons.Rounded.Palette, value = if (settings.midnight) "Midnight Black" else "Silver Classic") { push("appearance", "Aspetto iPod") },
             Entry("Comandi", Icons.Rounded.TouchApp, value = if (settings.controlMode == "buttons") "Solo tasti" else "Ruota e tasti") { push("controls", "Comandi") },
@@ -207,7 +243,7 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
         else -> emptyList()
     }
     LaunchedEffect(entries.size) { selected = selected.coerceIn(0, (entries.size - 1).coerceAtLeast(0)) }
-    val listRoute = route.type != "playing" && route.type != "lock" && route.type != "spotify"
+    val listRoute = route.type != "playing" && route.type != "spotifyplaying" && route.type != "lock"
     val buttonsOnly = settings.controlMode == "buttons"
     fun move(delta: Int) { if (entries.isNotEmpty()) selected = (selected + delta).coerceIn(0, entries.lastIndex) }
     // Un tocco sullo schermo vibra come un tasto: lo scatto della ruota ha invece il suo colpetto leggero.
@@ -222,16 +258,20 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             IPodShell(settings, haptics, display = { scale ->
                 Column(Modifier.fillMaxSize().background(DisplayBlack)) {
                     if (route.type != "lock") StatusBar(scale)
-                    if (route.type !in listOf("home", "lock", "playing", "library")) {
+                    if (route.type !in listOf("home", "lock", "playing", "spotifyplaying", "library")) {
                         NavBar(route.title, routes.getOrNull(routes.lastIndex - 1)?.title, scale) { haptics.press(); back() }
                     }
                     when (route.type) {
                         "lock" -> LockScreen(scale) { haptics.press(); unlock() }
-                        "home" -> HomeScreen(entries, selected, scale, thumbs, onSelect = ::choose, onNow = { if (playing.id != null) push("playing", "In riproduzione") })
+                        "home" -> HomeScreen(entries, selected, scale, thumbs, onSelect = ::choose, onNow = {
+                            if (sp.status == SpotifyStatus.CONNECTED && sp.id != null && !playing.playing) push("spotifyplaying", "Spotify")
+                            else if (playing.id != null) push("playing", "In riproduzione")
+                        })
                         "library" -> Column(Modifier.weight(1f)) {
                             IconGrid(entries, selected, scale, Modifier.weight(1f), ::choose)
                             if (playing.id != null) MiniPlayer(playing, scale, null, { push("playing", "In riproduzione") }, vm::togglePlay, vm::next)
                         }
+                        "spotifyplaying" -> NowPlaying(spotifyPlayback, false, scale, spotifyControls, null, null, null, sp.cover)
                         "playing" -> NowPlaying(playing, current?.favorite == true, scale, controls, { current?.let { vm.favorite(it.id) } },
                             { push("queue", "Coda di riproduzione") }, { current?.let { songOptions = it } })
                         else -> {
@@ -266,6 +306,14 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             }, onStep = { delta ->
                 when (route.type) {
                     "lock" -> Unit
+                    "spotifyplaying" -> if (settings.playerWheel == "seek") spotify.seekBy(delta * 5000L) else {
+                        trackSteps += delta
+                        if (abs(trackSteps) >= 3) {
+                            if (trackSteps > 0) spotify.next() else spotify.previous()
+                            trackSteps = 0
+                            haptics.press()
+                        }
+                    }
                     "playing" -> if (settings.playerWheel == "seek") vm.seekBy(delta * 5000L) else {
                         trackSteps += delta
                         if (abs(trackSteps) >= 3) {
@@ -281,18 +329,20 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
                     "menu" -> back()
                     "select" -> when (route.type) {
                         "lock" -> unlock()
+                        "spotifyplaying" -> spotify.toggle()
                         "playing" -> current?.let { songOptions = it }
                         else -> entries.getOrNull(selected)?.run?.invoke()
                     }
-                    "play" -> if (route.type == "lock") unlock() else if (route.type != "spotify") {
+                    "play" -> if (route.type == "lock") unlock() else if (route.type == "spotifyplaying") spotify.toggle() else if (route.type != "spotify") {
                         if (playing.id == null) entries.getOrNull(selected)?.track?.let { play(entries.mapNotNull { it.track }, it) } else vm.togglePlay()
                     }
-                    "next" -> if (buttonsOnly && listRoute) move(1) else if (route.type != "spotify") vm.next()
-                    "previous" -> if (buttonsOnly && listRoute) move(-1) else if (route.type != "spotify") vm.previous()
+                    "next" -> if (buttonsOnly && listRoute) move(1) else if (route.type == "spotifyplaying") spotify.next() else if (route.type != "spotify") vm.next()
+                    "previous" -> if (buttonsOnly && listRoute) move(-1) else if (route.type == "spotifyplaying") spotify.previous() else if (route.type != "spotify") vm.previous()
                 }
             }, onHold = { key ->
                 val direction = if (key == "next") 1 else -1
-                if (buttonsOnly && listRoute) move(direction) else if (route.type != "spotify" && route.type != "lock") vm.seekBy(direction * 5000L)
+                if (buttonsOnly && listRoute) move(direction) else if (route.type == "spotifyplaying") spotify.seekBy(direction * 5000L)
+                else if (route.type != "spotify" && route.type != "lock") vm.seekBy(direction * 5000L)
             })
             if (message != null) {
                 LaunchedEffect(message) { delay(5500); vm.message.value = null }
@@ -326,8 +376,29 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             dismissButton = { TextButton(onClick = { newPlaylist = false }) { Text("Annulla") } })
         deletePlaylist?.let { p -> AlertDialog(onDismissRequest = { deletePlaylist = null }, title = { Text("Elimina ${p.name}?") }, text = { Text("I brani originali vengono conservati.") },
             confirmButton = { TextButton(onClick = { vm.deletePlaylist(p.id); deletePlaylist = null; back() }) { Text("Elimina") } }, dismissButton = { TextButton(onClick = { deletePlaylist = null }) { Text("Annulla") } }) }
+        if (clientDialog) AlertDialog(onDismissRequest = { clientDialog = false }, title = { Text("Client ID di Spotify") }, text = {
+            OutlinedTextField(clientText, { clientText = it }, label = { Text("Client ID") }, singleLine = true)
+        }, confirmButton = { TextButton(onClick = {
+            vm.preference(Preferences.spotifyClientId, clientText.trim()); clientDialog = false
+            if (clientText.isNotBlank()) spotify.disconnect()
+        }) { Text("Salva") } }, dismissButton = { TextButton(onClick = { clientDialog = false }) { Text("Annulla") } })
+        if (linkDialog) AlertDialog(onDismissRequest = { linkDialog = false }, title = { Text("Link Spotify") }, text = {
+            OutlinedTextField(linkText, { linkText = it }, label = { Text("Link o URI") }, placeholder = { Text("https://open.spotify.com/track/…") }, singleLine = true)
+        }, confirmButton = { TextButton(onClick = { if (playSpotifyLink(linkText)) linkDialog = false }, enabled = linkText.isNotBlank()) { Text("Riproduci") } },
+            dismissButton = { TextButton(onClick = { linkDialog = false }) { Text("Annulla") } })
         info?.let { text -> AlertDialog(onDismissRequest = { info = null }, title = { Text(route.title) }, text = { Text(text, Modifier.verticalScroll(rememberScrollState())) }, confirmButton = { TextButton(onClick = { info = null }) { Text("Chiudi") } }) }
     }
 }
 
 @Composable private fun Option(title: String, onClick: () -> Unit) { Text(title, Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp), fontSize = 15.sp) }
+
+private fun spotifyGuide(context: android.content.Context, clientId: String): String {
+    val sha1 = SpotifyBridge.signingSha1(context) ?: "non disponibile"
+    return "Spotify gira nella sua app e Jarvis la comanda con l’SDK ufficiale: servono l’app Spotify installata e, per scegliere un brano preciso, un account Premium.\n\n" +
+        "1. Su developer.spotify.com/dashboard crea un’app (API: Android).\n" +
+        "2. Redirect URI: ${SpotifyBridge.REDIRECT_URI}\n" +
+        "3. In Android packages aggiungi:\n   Pacchetto: ${context.packageName}\n   SHA-1: $sha1\n" +
+        "4. Copia il Client ID e inseriscilo in Jarvis.\n\n" +
+        "La prima connessione mostra la schermata di autorizzazione di Spotify. Se reinstalli l’app con un’altra firma, l’impronta SHA-1 cambia e va aggiornata nel Dashboard." +
+        if (clientId.isBlank()) "" else "\n\nClient ID attuale: $clientId"
+}

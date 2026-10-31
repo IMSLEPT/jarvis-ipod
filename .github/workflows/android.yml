@@ -28,8 +28,8 @@ jobs:
           python3 - <<'PY'
           log = open('gradle.log', errors='replace').read().splitlines()
           def enc(s): return s.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-          errors = [l for l in log if l.startswith('e: ') or ' FAILED' in l or 'error:' in l.lower() or l.startswith('> ')][:40]
-          if errors: print('::error title=Errori::' + enc('\n'.join(errors)))
+          errors = [l for l in log if l.startswith('e: ') or ' FAILED' in l or 'error:' in l.lower() or l.startswith('* What went wrong') or l.startswith('Execution failed')][:40]
+          if errors: print('::warning title=Errori (se la build è fallita)::' + enc('\n'.join(errors)))
           print('::notice title=Coda del log::' + enc('\n'.join(log[-12:])))
           PY
       - name: Impronta SHA-1 della firma
