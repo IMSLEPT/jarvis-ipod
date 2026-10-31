@@ -53,7 +53,10 @@ class JarvisDeviceTest {
         }
         compose.onNodeWithContentDescription("Seleziona").performClick()
         compose.onNodeWithText("Aspetto iPod").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Midnight Black").performClick()
+        compose.onNodeWithText("Midnight Black").assertIsDisplayed()
+        // Confirm the second appearance entry through the original down/centre controls.
+        compose.onNodeWithContentDescription("Giù, play o pausa").performClick()
+        compose.onNodeWithContentDescription("Seleziona").performClick()
         compose.waitUntil(10000) { runBlocking { app.preferences.settings.first().midnight } }
         compose.activityRule.scenario.recreate()
         compose.waitForIdle()
