@@ -73,7 +73,15 @@ Accesso reale, consenso, cartelle remote, streaming e download con un account Go
 
 ## Spotify
 
-Si apre l’app ufficiale o una Custom Tab del browser. Login e ascolto con un account reale non sono stati verificati. Non esiste riproduzione WebView dichiarata funzionante, non è incluso App Remote e la ruota non controlla Spotify. Conservare MENU per uscire dalla sezione e usare solo integrazioni ufficiali; nessuno scraping o aggiramento DRM/autenticazione.
+Dalla 1.1 è integrato con l’SDK ufficiale App Remote 0.8.0 (AAR in `app/libs/`, più Gson): `spotify/SpotifyBridge.kt` (connessione, `PlayerState`, copertina via ImagesApi, comandi, spiegazione degli errori), `spotify/SpotifyLinks.kt` (parsing di link/URI, con test JVM) e le route `spotify` e `spotifyplaying` in `ui/JarvisUI.kt`. Il Client ID si inserisce in Impostazioni app (DataStore `spotify_client_id`); redirect URI `jarvisipod://spotify-callback`; la guida in-app mostra package e SHA-1 reali della firma. L’audio resta nell’app Spotify; la connessione usa il contesto dell’Activity e viene chiusa con la UI (Spotify continua a suonare). La ruota e i tasti controllano Spotify solo nella route `spotifyplaying`.
+
+Compilazione in CI superata, ma **connessione, autorizzazione, comandi e avvio da link con un account reale non sono stati verificati** (serve Premium per i brani singoli e la registrazione nel Dashboard con SHA-1 della firma installata, che con la chiave debug del workflow cambia a ogni build). Solo integrazioni ufficiali; nessuno scraping o aggiramento DRM/autenticazione. MENU esce dalla sezione.
+
+## Grafica, comandi e vibrazione (1.1)
+
+Nuova interfaccia (`ui/Screens.kt`, `ui/Hardware.kt`): schermata iniziale con ora, menu a pillola blu-viola con miniature, griglie album e libreria, lettore con barra trascinabile. `Settings.controlMode` = `wheel` (ruota e tasti) o `buttons` (rotazione disattivata; Precedente/Successivo spostano la selezione nelle liste); `playerWheel` = `track` (ogni 3 scatti cambia brano) o `seek` (5 s a scatto). `ui/Haptics.kt` usa gli effetti predefiniti TICK/CLICK/HEAVY_CLICK (API 29+) con livelli 0–3 e, da Android 13, `USAGE_TOUCH` (segue «Feedback tattile» di sistema). Compilato in CI; **non visto né provato su telefono**. Il riferimento grafico originale non è nei file: non presentare questa resa come fedele finché non è confrontata con l’immagine.
+
+L’icona adattiva (`res/mipmap-anydpi`, `drawable-nodpi/ic_launcher_*`) è ricavata dall’immagine fornita, con il contenuto entro la zona sicura di 66 dp.
 
 ## Firma e distribuzione
 

@@ -20,7 +20,7 @@ Il workflow manuale **Consegna APK** pubblica una prerelease con i file già pre
 2. Aprilo da Files e abilita, se richiesto, «Installa app sconosciute» per Files.
 3. Installa e apri **Jarvis iPod**. Android minimo: 8.0 / API 26.
 4. Seleziona **Musica locale** e autorizza l’accesso ai file audio. Su Android 13+ viene richiesto solo `READ_MEDIA_AUDIO`; sui sistemi precedenti `READ_EXTERNAL_STORAGE`, limitato ad Android 12L.
-5. Per Drive completa prima la configurazione OAuth descritta sotto. Spotify si apre nell’app ufficiale o nel browser.
+5. Per Drive completa prima la configurazione OAuth descritta sotto. Spotify si collega dall’interno di Jarvis dopo aver inserito il Client ID (vedi sezione Spotify).
 
 Con USB e debug USB attivo:
 
@@ -92,13 +92,17 @@ I download sono facoltativi, controllano `capabilities.canDownload`, usano file 
 
 Drive non espone tag ID3 né copertine audio nelle normali risposte Files: viene mostrato il nome del file, «Google Drive» come artista e il nome della cartella come album. I tag incorporati dei file cloud non vengono estratti. I formati riproducibili dipendono da Android/Media3 e dal contenitore.
 
-## Spotify: scelta e limiti verificabili
+## Spotify dentro Jarvis (App Remote)
 
-La sezione offre **Apri app Spotify** (con fallback al sito) e **Apri Spotify nel browser** tramite Android Custom Tabs. Il lettore locale viene messo in pausa prima dell’apertura. Indietro dal browser/app riporta a Jarvis; MENU esce dalla sezione. La sessione è gestita da Spotify e dal browser, non da cookie copiati nell’app.
+Dalla versione 1.1 Spotify si usa **senza uscire da Jarvis**, con l’SDK ufficiale [Spotify App Remote](https://developer.spotify.com/documentation/android) (AAR 0.8.0, Apache 2.0, in `app/libs/`, con Gson). L’app Spotify riproduce in background (audio, rete, cache e account restano suoi); Jarvis mostra brano e copertina, usa la stessa schermata del lettore e comanda play/pausa, precedente/successivo, cerca, casuale e ripeti, anche con la ruota. Si può riprendere la riproduzione o avviare un brano, album o playlist incollando un link «Condividi» o un URI `spotify:`.
 
-La [documentazione del Web Player](https://support.spotify.com/us/article/web-player-help/) elenca Chrome, Samsung Internet e Firefox su Android; non garantisce WebView. Non è stato verificato login + riproduzione Spotify in WebView con un account reale, quindi **non viene presentata una WebView come lettore funzionante**. Il supporto Widevine del telefono, da solo, non garantisce quello del player in un browser incorporato.
+Configurazione (gratuita, una volta):
+1. Su [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) crea un’app (API: Android).
+2. Redirect URI: `jarvisipod://spotify-callback`.
+3. In *Android packages* aggiungi il pacchetto `it.jarvis.ipod` e l’impronta SHA-1 della firma dell’APK installato. Jarvis la mostra in **Spotify > Guida alla configurazione**. Ogni build del workflow GitHub genera una chiave debug nuova, quindi lo SHA-1 cambia a ogni APK: per non ripetere la registrazione serve una chiave stabile (vedi Firma).
+4. In Jarvis apri **Spotify > Imposta Client ID** e incolla il Client ID. La prima connessione mostra la schermata di autorizzazione di Spotify.
 
-[App Remote](https://developer.spotify.com/documentation/android) controlla l’app Spotify installata e richiede registrazione sviluppatore e consenso; la documentazione lo descrive come SDK beta. Il [Web Playback SDK](https://developer.spotify.com/documentation/web-playback-sdk) richiede OAuth e un piano Premium compatibile. Nessuno dei due è necessario per aprire il servizio ufficiale e non è incluso in questa versione. **La Click Wheel non controlla Spotify**. Non sono usati scraping, API private o aggiramenti DRM. Login e riproduzione con account Spotify restano da verificare sul telefono; le funzionalità del servizio dipendono da browser, account e piano.
+Limiti: serve l’app Spotify installata; scegliere un brano preciso richiede **Premium**; le app in modalità sviluppo hanno i limiti di utenti e account del Dashboard Spotify. Il codice è compilato in CI ma **non è stato provato con un account Spotify reale**. Non sono usati scraping, API private o aggiramenti DRM; il Web Player in WebView non è usato. Si può ancora aprire l’app ufficiale dalla stessa sezione (esce da Jarvis).
 
 ## Compilazione
 
