@@ -14,6 +14,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import it.jarvis.ipod.data.Preferences
 import it.jarvis.ipod.data.Track
 import it.jarvis.ipod.playback.PlaybackService
+import it.jarvis.ipod.playback.AudioReactive
+import android.os.SystemClock
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -34,6 +36,7 @@ class PlaybackDeviceTest {
     private val app get() = context.applicationContext as JarvisApp
 
     @Test fun mediaStorePlaybackBackgroundAndResume() {
+        runBlocking { app.preferences.set(Preferences.neon, true) }
         val permission = if(Build.VERSION.SDK_INT >= 33) "android.permission.READ_MEDIA_AUDIO" else "android.permission.READ_EXTERNAL_STORAGE"
         instrument.uiAutomation.executeShellCommand("pm grant ${context.packageName} $permission").use { p -> java.io.FileInputStream(p.fileDescriptor).readBytes() }
         val values = ContentValues().apply {
@@ -80,6 +83,9 @@ class PlaybackDeviceTest {
                 instrument.runOnMainSync { position = p.currentPosition }
             }
             assertTrue("Audio position must actually advance", position >= 600)
+            val meterDeadline = SystemClock.uptimeMillis() + 5000
+            while (AudioReactive.level(SystemClock.uptimeMillis()) == 0f && SystemClock.uptimeMillis() < meterDeadline) Thread.sleep(30)
+            assertTrue("Decoded PCM must feed the neon meter", AudioReactive.level(SystemClock.uptimeMillis()) > 0f)
             val stopped = CountDownLatch(1)
             activityRule.scenario.onActivity { activity ->
                 activity.lifecycle.addObserver(LifecycleEventObserver { _, event ->
@@ -96,6 +102,7 @@ class PlaybackDeviceTest {
                 p.pause()
             }
             assertTrue("Background playback must advance", after > position + 500)
+            assertEquals(0f, AudioReactive.level(SystemClock.uptimeMillis()))
             Thread.sleep(3500)
             val snapshot = runBlocking { app.preferences.data.first() }
             assertTrue(snapshot[Preferences.queue]!!.contains(track.id))

@@ -30,7 +30,7 @@ android {
         // Cresce a ogni build di GitHub Actions, così Android la tratta come aggiornamento della precedente.
         versionCode = (providers.gradleProperty("jarvisVersionCode").orNull
             ?: System.getenv("JARVIS_VERSION_CODE"))?.toIntOrNull() ?: 1000
-        require(versionCode in 1000..2_100_000_000) { "Use a versionCode >= 1000; published versions must increase." }
+        require((versionCode ?: 0) in 1000..2_100_000_000) { "Use a versionCode >= 1000; published versions must increase." }
         versionName = "1.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
