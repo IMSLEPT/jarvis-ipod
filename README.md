@@ -104,6 +104,14 @@ Configurazione (gratuita, una volta):
 
 Limiti: serve l’app Spotify installata; scegliere un brano preciso richiede **Premium**; le app in modalità sviluppo hanno i limiti di utenti e account del Dashboard Spotify. Il codice è compilato in CI ma **non è stato provato con un account Spotify reale**. Non sono usati scraping, API private o aggiramenti DRM; il Web Player in WebView non è usato. Si può ancora aprire l’app ufficiale dalla stessa sezione (esce da Jarvis).
 
+## Colore, alone, tasti e backup
+
+- **Midnight Black** è ora grafite metallico, con luci e ombre campionate dall'immagine di riferimento; **Silver Classic** resta disponibile. Il confronto visivo puntuale sul telefono non è stato eseguito.
+- La scocca occupa tutta l'altezza dello schermo e il testo del display non dipende dalla dimensione carattere di sistema.
+- La ruota e i tasti hanno un alone blu di base; in **Impostazioni > Colore alone** scegli un altro colore o spegnilo.
+- I tasti si possono toccare normalmente: ◀◀ e ▶▶ spostano la selezione nelle liste, nel lettore cambiano brano (pressione lunga: avanti/indietro di 5 s). La ruota funziona in più, tranne in modalità «Solo tasti».
+- **Impostazioni > Backup impostazioni**: scegli una volta un file (anche su Google Drive) e Jarvis lo aggiorna da solo a ogni modifica con Client ID Spotify, cartelle Drive, tema, comandi, vibrazione e colore. Dopo una reinstallazione usa *Ripristina da file*. Nel file non ci sono token né password. Se la nuova installazione ha una firma diversa, l'SHA-1 va comunque registrato di nuovo in Google Cloud e Spotify.
+
 ## Compilazione
 
 Richiede JDK 17 o 21, Android SDK Platform 35, Build Tools 35.0.0 e accesso a Google Maven/Maven Central. Gradle 8.9 è gestito dal wrapper; AGP 8.7.3, Kotlin 1.9.25, Compose BOM 2024.12.01 e Media3 1.5.1 sono versioni stabili fissate nel progetto.

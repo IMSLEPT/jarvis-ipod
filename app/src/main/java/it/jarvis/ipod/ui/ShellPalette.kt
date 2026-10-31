@@ -1,0 +1,97 @@
+package it.jarvis.ipod.ui
+
+import androidx.compose.ui.graphics.Color
+
+/**
+ * Colori della scocca "Midnight Black", campionati dall'immagine di riferimento fornita dal proprietario: una griglia di
+ * 18 x 30 colori (luci e ombre della scocca, con il riflesso caldo a sinistra e freddo a destra) che viene ingrandita con
+ * interpolazione, più i colori del bordo smussato lungo il perimetro. Generata con uno script a partire dall'immagine.
+ */
+internal const val GRAPHITE_COLUMNS = 18
+internal const val GRAPHITE_ROWS = 30
+
+internal val GraphiteGrid = intArrayOf(
+    0xFF181318.toInt(), 0xFF10121B.toInt(), 0xFF0E141F.toInt(), 0xFF0E1521.toInt(), 0xFF0F1621.toInt(), 0xFF101722.toInt(), 0xFF131925.toInt(), 0xFF151C27.toInt(), 0xFF19202B.toInt(), 0xFF1C222E.toInt(), 0xFF1F2632.toInt(), 0xFF232A36.toInt(), 0xFF272D3A.toInt(), 0xFF2C323F.toInt(), 0xFF2E3542.toInt(), 0xFF313744.toInt(), 0xFF3F4653.toInt(), 0xFF5C616F.toInt(),
+    0xFF27171A.toInt(), 0xFF19141B.toInt(), 0xFF0F141F.toInt(), 0xFF0F1621.toInt(), 0xFF0F1621.toInt(), 0xFF111722.toInt(), 0xFF131A25.toInt(), 0xFF161D28.toInt(), 0xFF1A202C.toInt(), 0xFF1D232F.toInt(), 0xFF202733.toInt(), 0xFF242B37.toInt(), 0xFF282F3B.toInt(), 0xFF2D3340.toInt(), 0xFF303643.toInt(), 0xFF343B48.toInt(), 0xFF535967.toInt(), 0xFF6E7380.toInt(),
+    0xFF351C1D.toInt(), 0xFF28191D.toInt(), 0xFF26191F.toInt(), 0xFF201920.toInt(), 0xFF1B1921.toInt(), 0xFF171923.toInt(), 0xFF161B26.toInt(), 0xFF171D28.toInt(), 0xFF1A202C.toInt(), 0xFF1D242F.toInt(), 0xFF212834.toInt(), 0xFF282E3A.toInt(), 0xFF313844.toInt(), 0xFF3E4451.toInt(), 0xFF4C515E.toInt(), 0xFF585E6B.toInt(), 0xFF656A78.toInt(), 0xFF757A87.toInt(),
+    0xFF3C1E1E.toInt(), 0xFF2E1B1F.toInt(), 0xFF2C1B1F.toInt(), 0xFF261A20.toInt(), 0xFF201A21.toInt(), 0xFF1A1A23.toInt(), 0xFF171B25.toInt(), 0xFF181D28.toInt(), 0xFF1A202C.toInt(), 0xFF1D2430.toInt(), 0xFF232935.toInt(), 0xFF2B313D.toInt(), 0xFF383E4A.toInt(), 0xFF474D5A.toInt(), 0xFF565B68.toInt(), 0xFF616774.toInt(), 0xFF6B707E.toInt(), 0xFF7A7E8B.toInt(),
+    0xFF3E2020.toInt(), 0xFF301C21.toInt(), 0xFF321D1F.toInt(), 0xFF2D1C20.toInt(), 0xFF271B21.toInt(), 0xFF1F1A22.toInt(), 0xFF1A1B25.toInt(), 0xFF191D28.toInt(), 0xFF1A202C.toInt(), 0xFF1E2530.toInt(), 0xFF252B37.toInt(), 0xFF303743.toInt(), 0xFF414754.toInt(), 0xFF535865.toInt(), 0xFF606672.toInt(), 0xFF696E7B.toInt(), 0xFF6D7280.toInt(), 0xFF7B7F8C.toInt(),
+    0xFF3F2121.toInt(), 0xFF321D22.toInt(), 0xFF371E20.toInt(), 0xFF341D20.toInt(), 0xFF2E1C20.toInt(), 0xFF271C22.toInt(), 0xFF1F1C24.toInt(), 0xFF1B1D28.toInt(), 0xFF1B212C.toInt(), 0xFF202632.toInt(), 0xFF2A303C.toInt(), 0xFF3B414D.toInt(), 0xFF505562.toInt(), 0xFF606572.toInt(), 0xFF6A6F7C.toInt(), 0xFF707481.toInt(), 0xFF6B707D.toInt(), 0xFF787C89.toInt(),
+    0xFF3E2021.toInt(), 0xFF311D22.toInt(), 0xFF3A1F20.toInt(), 0xFF381E20.toInt(), 0xFF351E20.toInt(), 0xFF2F1D21.toInt(), 0xFF271D23.toInt(), 0xFF1F1E27.toInt(), 0xFF1E222C.toInt(), 0xFF242A36.toInt(), 0xFF353B47.toInt(), 0xFF4B515D.toInt(), 0xFF5F6471.toInt(), 0xFF6A6F7C.toInt(), 0xFF707582.toInt(), 0xFF737885.toInt(), 0xFF686D7A.toInt(), 0xFF747986.toInt(),
+    0xFF3D1F20.toInt(), 0xFF311C21.toInt(), 0xFF3B1F20.toInt(), 0xFF3A1F20.toInt(), 0xFF381E20.toInt(), 0xFF351E21.toInt(), 0xFF2F1E22.toInt(), 0xFF271E25.toInt(), 0xFF24242E.toInt(), 0xFF2F3440.toInt(), 0xFF474C59.toInt(), 0xFF5D626F.toInt(), 0xFF6A6F7C.toInt(), 0xFF707582.toInt(), 0xFF737784.toInt(), 0xFF747986.toInt(), 0xFF676C7A.toInt(), 0xFF737885.toInt(),
+    0xFF3E1F20.toInt(), 0xFF321C21.toInt(), 0xFF3C1F20.toInt(), 0xFF3B1F20.toInt(), 0xFF391E20.toInt(), 0xFF371E21.toInt(), 0xFF341F22.toInt(), 0xFF2F2227.toInt(), 0xFF2F2C35.toInt(), 0xFF3F434E.toInt(), 0xFF565C69.toInt(), 0xFF666B78.toInt(), 0xFF6E7380.toInt(), 0xFF727683.toInt(), 0xFF747885.toInt(), 0xFF757986.toInt(), 0xFF686E7B.toInt(), 0xFF757986.toInt(),
+    0xFF3D1F1F.toInt(), 0xFF311B20.toInt(), 0xFF3B1F1F.toInt(), 0xFF3A1F20.toInt(), 0xFF381F20.toInt(), 0xFF371F22.toInt(), 0xFF342226.toInt(), 0xFF32282F.toInt(), 0xFF35343E.toInt(), 0xFF424652.toInt(), 0xFF545A67.toInt(), 0xFF636875.toInt(), 0xFF6C717E.toInt(), 0xFF707582.toInt(), 0xFF737784.toInt(), 0xFF747986.toInt(), 0xFF6B707D.toInt(), 0xFF767B88.toInt(),
+    0xFF3A1E1F.toInt(), 0xFF2F1A1F.toInt(), 0xFF391E1F.toInt(), 0xFF381F20.toInt(), 0xFF361F22.toInt(), 0xFF332125.toInt(), 0xFF31262C.toInt(), 0xFF312E37.toInt(), 0xFF353843.toInt(), 0xFF3E434F.toInt(), 0xFF4A4F5C.toInt(), 0xFF585D6A.toInt(), 0xFF646976.toInt(), 0xFF6B707D.toInt(), 0xFF707481.toInt(), 0xFF727784.toInt(), 0xFF6C717F.toInt(), 0xFF777C89.toInt(),
+    0xFF391D1E.toInt(), 0xFF2F1A1F.toInt(), 0xFF371E20.toInt(), 0xFF351F21.toInt(), 0xFF322024.toInt(), 0xFF2F2429.toInt(), 0xFF2E2932.toInt(), 0xFF30313B.toInt(), 0xFF353844.toInt(), 0xFF3B404D.toInt(), 0xFF434956.toInt(), 0xFF4E5360.toInt(), 0xFF595F6C.toInt(), 0xFF636875.toInt(), 0xFF6A6F7C.toInt(), 0xFF6E7380.toInt(), 0xFF6A6F7D.toInt(), 0xFF767A87.toInt(),
+    0xFF391D1D.toInt(), 0xFF2F1A1D.toInt(), 0xFF331E21.toInt(), 0xFF302023.toInt(), 0xFF2D2227.toInt(), 0xFF2C262D.toInt(), 0xFF2C2B35.toInt(), 0xFF2F323D.toInt(), 0xFF343945.toInt(), 0xFF3A3F4C.toInt(), 0xFF404653.toInt(), 0xFF474D5A.toInt(), 0xFF505563.toInt(), 0xFF595F6C.toInt(), 0xFF616774.toInt(), 0xFF686D7A.toInt(), 0xFF686D7A.toInt(), 0xFF747885.toInt(),
+    0xFF3B1E1D.toInt(), 0xFF301B1D.toInt(), 0xFF2F1F22.toInt(), 0xFF2C2025.toInt(), 0xFF2A232A.toInt(), 0xFF29272F.toInt(), 0xFF2B2C36.toInt(), 0xFF2F323D.toInt(), 0xFF343945.toInt(), 0xFF3A3F4C.toInt(), 0xFF3F4451.toInt(), 0xFF444A57.toInt(), 0xFF4A505D.toInt(), 0xFF515764.toInt(), 0xFF595E6C.toInt(), 0xFF606573.toInt(), 0xFF676C7A.toInt(), 0xFF737885.toInt(),
+    0xFF3C1E1D.toInt(), 0xFF321B1D.toInt(), 0xFF2B1F23.toInt(), 0xFF282127.toInt(), 0xFF27232B.toInt(), 0xFF282730.toInt(), 0xFF2A2C37.toInt(), 0xFF2E323D.toInt(), 0xFF343944.toInt(), 0xFF393F4B.toInt(), 0xFF3E4451.toInt(), 0xFF424856.toInt(), 0xFF474D5A.toInt(), 0xFF4C5260.toInt(), 0xFF525866.toInt(), 0xFF595E6C.toInt(), 0xFF676C7A.toInt(), 0xFF737885.toInt(),
+    0xFF3A1E1D.toInt(), 0xFF2C1A1D.toInt(), 0xFF1E1C25.toInt(), 0xFF1F212B.toInt(), 0xFF22252F.toInt(), 0xFF262A35.toInt(), 0xFF2D323D.toInt(), 0xFF323843.toInt(), 0xFF333844.toInt(), 0xFF393F4B.toInt(), 0xFF3D434F.toInt(), 0xFF404652.toInt(), 0xFF424755.toInt(), 0xFF434957.toInt(), 0xFF454B59.toInt(), 0xFF4A505E.toInt(), 0xFF606673.toInt(), 0xFF717582.toInt(),
+    0xFF331D1E.toInt(), 0xFF211A21.toInt(), 0xFF1D1D27.toInt(), 0xFF1F212B.toInt(), 0xFF222530.toInt(), 0xFF262A35.toInt(), 0xFF2D323D.toInt(), 0xFF323843.toInt(), 0xFF363C48.toInt(), 0xFF3A404C.toInt(), 0xFF3E4450.toInt(), 0xFF404653.toInt(), 0xFF424856.toInt(), 0xFF434957.toInt(), 0xFF454B59.toInt(), 0xFF474D5B.toInt(), 0xFF525866.toInt(), 0xFF6A6F7D.toInt(),
+    0xFF2E1C1E.toInt(), 0xFF1E1A21.toInt(), 0xFF1D1D26.toInt(), 0xFF1F212B.toInt(), 0xFF222530.toInt(), 0xFF272B36.toInt(), 0xFF2D323E.toInt(), 0xFF323844.toInt(), 0xFF363C48.toInt(), 0xFF3B414D.toInt(), 0xFF3F4451.toInt(), 0xFF414754.toInt(), 0xFF434956.toInt(), 0xFF434957.toInt(), 0xFF444A58.toInt(), 0xFF464C5A.toInt(), 0xFF4D5361.toInt(), 0xFF656B79.toInt(),
+    0xFF2C1B1C.toInt(), 0xFF1D191F.toInt(), 0xFF1C1C25.toInt(), 0xFF1F212A.toInt(), 0xFF232630.toInt(), 0xFF272B36.toInt(), 0xFF2D313D.toInt(), 0xFF313743.toInt(), 0xFF363C48.toInt(), 0xFF3C414E.toInt(), 0xFF404653.toInt(), 0xFF424856.toInt(), 0xFF434957.toInt(), 0xFF424856.toInt(), 0xFF424856.toInt(), 0xFF434957.toInt(), 0xFF4B515F.toInt(), 0xFF636877.toInt(),
+    0xFF2B191A.toInt(), 0xFF1C181E.toInt(), 0xFF1B1B23.toInt(), 0xFF1E2029.toInt(), 0xFF22242E.toInt(), 0xFF252934.toInt(), 0xFF2B2F3B.toInt(), 0xFF2A2E38.toInt(), 0xFF313642.toInt(), 0xFF393E4B.toInt(), 0xFF3E4451.toInt(), 0xFF434957.toInt(), 0xFF424856.toInt(), 0xFF414755.toInt(), 0xFF404654.toInt(), 0xFF414755.toInt(), 0xFF484F5D.toInt(), 0xFF5F6574.toInt(),
+    0xFF2A1819.toInt(), 0xFF1B171C.toInt(), 0xFF1A1A22.toInt(), 0xFF1D1E27.toInt(), 0xFF1F222B.toInt(), 0xFF232630.toInt(), 0xFF24252E.toInt(), 0xFF292B36.toInt(), 0xFF303440.toInt(), 0xFF393E4B.toInt(), 0xFF3E4451.toInt(), 0xFF404654.toInt(), 0xFF414755.toInt(), 0xFF404654.toInt(), 0xFF3F4553.toInt(), 0xFF3F4553.toInt(), 0xFF464C5B.toInt(), 0xFF5C6271.toInt(),
+    0xFF271718.toInt(), 0xFF1A161B.toInt(), 0xFF191920.toInt(), 0xFF1B1C23.toInt(), 0xFF1D1F26.toInt(), 0xFF1F1E26.toInt(), 0xFF21222B.toInt(), 0xFF262832.toInt(), 0xFF2E323D.toInt(), 0xFF383D4A.toInt(), 0xFF3D4350.toInt(), 0xFF3F4553.toInt(), 0xFF414654.toInt(), 0xFF3E4452.toInt(), 0xFF3D4351.toInt(), 0xFF3D4351.toInt(), 0xFF454B5A.toInt(), 0xFF5B6170.toInt(),
+    0xFF241618.toInt(), 0xFF19151A.toInt(), 0xFF19181E.toInt(), 0xFF1A1B21.toInt(), 0xFF1B1C22.toInt(), 0xFF1D1C23.toInt(), 0xFF1F1F26.toInt(), 0xFF23242D.toInt(), 0xFF2B2F39.toInt(), 0xFF363B47.toInt(), 0xFF3B414E.toInt(), 0xFF3D4350.toInt(), 0xFF3E4452.toInt(), 0xFF3B414E.toInt(), 0xFF3B414E.toInt(), 0xFF3C424F.toInt(), 0xFF444A58.toInt(), 0xFF595F6E.toInt(),
+    0xFF221517.toInt(), 0xFF18141A.toInt(), 0xFF18171D.toInt(), 0xFF1A191F.toInt(), 0xFF1B181E.toInt(), 0xFF1B1A20.toInt(), 0xFF1C1B22.toInt(), 0xFF1F2027.toInt(), 0xFF272933.toInt(), 0xFF323742.toInt(), 0xFF373D49.toInt(), 0xFF393F4C.toInt(), 0xFF3B414E.toInt(), 0xFF383E4B.toInt(), 0xFF383E4B.toInt(), 0xFF393F4C.toInt(), 0xFF414855.toInt(), 0xFF555B6A.toInt(),
+    0xFF211416.toInt(), 0xFF171419.toInt(), 0xFF17161C.toInt(), 0xFF19181E.toInt(), 0xFF1A171C.toInt(), 0xFF1A181E.toInt(), 0xFF1A191F.toInt(), 0xFF1C1C23.toInt(), 0xFF23242D.toInt(), 0xFF2D313B.toInt(), 0xFF323843.toInt(), 0xFF353B47.toInt(), 0xFF373D49.toInt(), 0xFF333945.toInt(), 0xFF343A46.toInt(), 0xFF363C48.toInt(), 0xFF3E4451.toInt(), 0xFF505664.toInt(),
+    0xFF211415.toInt(), 0xFF171318.toInt(), 0xFF17151B.toInt(), 0xFF18171D.toInt(), 0xFF19181E.toInt(), 0xFF19171C.toInt(), 0xFF19181E.toInt(), 0xFF1B1B21.toInt(), 0xFF202129.toInt(), 0xFF282C36.toInt(), 0xFF2E333E.toInt(), 0xFF313641.toInt(), 0xFF333844.toInt(), 0xFF2E3440.toInt(), 0xFF2F3541.toInt(), 0xFF323743.toInt(), 0xFF3A404C.toInt(), 0xFF4B525F.toInt(),
+    0xFF221415.toInt(), 0xFF171317.toInt(), 0xFF16151B.toInt(), 0xFF18171D.toInt(), 0xFF19181E.toInt(), 0xFF19171C.toInt(), 0xFF19181D.toInt(), 0xFF1A1A20.toInt(), 0xFF1F2028.toInt(), 0xFF262933.toInt(), 0xFF2B2F3A.toInt(), 0xFF2D333D.toInt(), 0xFF303540.toInt(), 0xFF2D333E.toInt(), 0xFF2D343E.toInt(), 0xFF2F3540.toInt(), 0xFF373D49.toInt(), 0xFF474E5C.toInt(),
+    0xFF211414.toInt(), 0xFF171216.toInt(), 0xFF16141A.toInt(), 0xFF18171D.toInt(), 0xFF19191F.toInt(), 0xFF1B1A20.toInt(), 0xFF19181E.toInt(), 0xFF1A1A21.toInt(), 0xFF1E2027.toInt(), 0xFF242831.toInt(), 0xFF282D37.toInt(), 0xFF2B303A.toInt(), 0xFF292E38.toInt(), 0xFF2B313B.toInt(), 0xFF2D323D.toInt(), 0xFF2D333E.toInt(), 0xFF343A46.toInt(), 0xFF424956.toInt(),
+    0xFF1E1214.toInt(), 0xFF151116.toInt(), 0xFF141318.toInt(), 0xFF17161C.toInt(), 0xFF1A191F.toInt(), 0xFF1B1B21.toInt(), 0xFF1B1D23.toInt(), 0xFF1A1B21.toInt(), 0xFF1E2027.toInt(), 0xFF232730.toInt(), 0xFF232731.toInt(), 0xFF242933.toInt(), 0xFF272B35.toInt(), 0xFF292D38.toInt(), 0xFF2A2F39.toInt(), 0xFF2B303B.toInt(), 0xFF2F3642.toInt(), 0xFF3C4350.toInt(),
+    0xFF181114.toInt(), 0xFF141116.toInt(), 0xFF131217.toInt(), 0xFF16151A.toInt(), 0xFF19181E.toInt(), 0xFF1B1B21.toInt(), 0xFF1B1D23.toInt(), 0xFF1C1F26.toInt(), 0xFF1E2027.toInt(), 0xFF23262F.toInt(), 0xFF222730.toInt(), 0xFF232832.toInt(), 0xFF242932.toInt(), 0xFF262A34.toInt(), 0xFF272B36.toInt(), 0xFF272D37.toInt(), 0xFF2B323D.toInt(), 0xFF343C48.toInt(),
+)
+
+/** Bordo smussato: (frazione dell'angolo, colore), con angolo 0 a destra e crescente in senso orario. */
+internal val GraphiteRim: Array<Pair<Float, Color>> = arrayOf(
+    0.00000f to Color(0xFFA4A4AC),
+    0.02083f to Color(0xFFA6A6AE),
+    0.04167f to Color(0xFFA3A3AB),
+    0.06250f to Color(0xFF96979E),
+    0.08333f to Color(0xFF84858B),
+    0.10417f to Color(0xFF696A73),
+    0.12500f to Color(0xFF4C4E58),
+    0.14583f to Color(0xFF393D46),
+    0.16667f to Color(0xFF2B313A),
+    0.18750f to Color(0xFF202631),
+    0.20833f to Color(0xFF1E222C),
+    0.22917f to Color(0xFF20232C),
+    0.25000f to Color(0xFF20242C),
+    0.27083f to Color(0xFF1D2026),
+    0.29167f to Color(0xFF18181E),
+    0.31250f to Color(0xFF141217),
+    0.33333f to Color(0xFF261514),
+    0.35417f to Color(0xFF4E2016),
+    0.37500f to Color(0xFF66291A),
+    0.39583f to Color(0xFF70301E),
+    0.41667f to Color(0xFF7C3720),
+    0.43750f to Color(0xFF863B22),
+    0.45833f to Color(0xFF8A3E24),
+    0.47917f to Color(0xFF883F24),
+    0.50000f to Color(0xFF843C23),
+    0.52083f to Color(0xFF803822),
+    0.54167f to Color(0xFF803623),
+    0.56250f to Color(0xFF8A4028),
+    0.58333f to Color(0xFF995330),
+    0.60417f to Color(0xFFA65F36),
+    0.62500f to Color(0xFFAC5F33),
+    0.64583f to Color(0xFF804325),
+    0.66667f to Color(0xFF321D18),
+    0.68750f to Color(0xFF10121A),
+    0.70833f to Color(0xFF10161E),
+    0.72917f to Color(0xFF131A22),
+    0.75000f to Color(0xFF161C27),
+    0.77083f to Color(0xFF1A202D),
+    0.79167f to Color(0xFF212734),
+    0.81250f to Color(0xFF343946),
+    0.83333f to Color(0xFF646471),
+    0.85417f to Color(0xFF97939C),
+    0.87500f to Color(0xFFA9A3AB),
+    0.89583f to Color(0xFFA9A4AD),
+    0.91667f to Color(0xFFA8A4AC),
+    0.93750f to Color(0xFFA6A3AA),
+    0.95833f to Color(0xFFA6A5AD),
+    0.97917f to Color(0xFFA5A6AD),
+    1.00000f to Color(0xFFA4A4AC),
+)

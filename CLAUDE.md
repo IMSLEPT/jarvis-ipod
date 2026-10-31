@@ -81,7 +81,14 @@ Compilazione in CI superata, ma **connessione, autorizzazione, comandi e avvio d
 
 Nuova interfaccia (`ui/Screens.kt`, `ui/Hardware.kt`): schermata iniziale con ora, menu a pillola blu-viola con miniature, griglie album e libreria, lettore con barra trascinabile. `Settings.controlMode` = `wheel` (ruota e tasti) o `buttons` (rotazione disattivata; Precedente/Successivo spostano la selezione nelle liste); `playerWheel` = `track` (ogni 3 scatti cambia brano) o `seek` (5 s a scatto). `ui/Haptics.kt` usa gli effetti predefiniti TICK/CLICK/HEAVY_CLICK (API 29+) con livelli 0–3 e, da Android 13, `USAGE_TOUCH` (segue «Feedback tattile» di sistema). Compilato in CI; **non visto né provato su telefono**. Il riferimento grafico originale non è nei file: non presentare questa resa come fedele finché non è confrontata con l’immagine.
 
-L’icona adattiva (`res/mipmap-anydpi`, `drawable-nodpi/ic_launcher_*`) è ricavata dall’immagine fornita, con il contenuto entro la zona sicura di 66 dp.
+Aggiunte successive alla 1.1 (compilate in CI, non viste su telefono):
+- `ui/ShellPalette.kt` (generato) contiene i colori grafite campionati dal riferimento: `GraphiteGrid` 18×30 e `GraphiteRim` per il bordo. Midnight Black è il tema predefinito e usa questa tavolozza; Silver Classic resta com'era. `Hardware.kt` la disegna una volta sola come bitmap.
+- L'alone di ruota e tasti usa `GlowOptions` (`glow` in DataStore, blu `0xFF45B0FF` di base, «Spento» = nessun alone); si cambia in Impostazioni > Colore alone.
+- La scocca occupa tutta l'altezza disponibile (larghezza = altezza / 1.6, limitata dallo schermo). `IPodShell` forza `fontScale = 1` per evitare testo tagliato (barra del mini-player) con caratteri grandi.
+- ◀◀/▶▶ spostano la selezione in tutte le liste, in modalità ruota e solo tasti; nel lettore saltano brano (pressione lunga: ±5 s). La libreria ha anche Google Drive e Spotify.
+- `data/Backup.kt` serializza Client ID Spotify, cartelle Drive e preferenze in JSON (senza token, email e URI del backup). `PlayerViewModel.keepBackupUpToDate` riscrive il file scelto (permesso persistente SAF) 1,5 s dopo ogni modifica; Impostazioni > Backup impostazioni salva/ripristina. Reinstallare con un'altra firma cancella comunque DataStore: serve ripristinare dal file.
+
+L'icona adattiva (`res/mipmap-anydpi`, `drawable-nodpi/ic_launcher_*`) è ricavata dall’immagine fornita, con il contenuto entro la zona sicura di 66 dp.
 
 ## Firma e distribuzione
 

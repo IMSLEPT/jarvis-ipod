@@ -39,7 +39,7 @@ private val Green = Color(0xFF34A853)
 private val SpotifyGreen = Color(0xFF1ED760)
 
 @Composable
-fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> Unit) {
+fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> Unit, saveBackup: () -> Unit, restoreBackup: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val tracks by vm.tracks.collectAsStateWithLifecycle()
     val playlists by vm.playlists.collectAsStateWithLifecycle()
@@ -146,7 +146,9 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             Entry("Artisti", Icons.Rounded.Person, "${local.map { it.artist }.distinct().size}") { push("artists", "Artisti") },
             Entry("Playlist", Icons.Rounded.QueueMusic, "${playlists.size}") { push("playlists", "Playlist") },
             Entry("Preferiti", Icons.Rounded.Favorite, "${tracks.count { it.favorite }}") { push("favorites", "Preferiti") },
-            Entry("Recenti", Icons.Rounded.History, "${tracks.count { it.lastPlayed > 0 }}") { push("recent", "Recenti") }
+            Entry("Recenti", Icons.Rounded.History, "${tracks.count { it.lastPlayed > 0 }}") { push("recent", "Recenti") },
+            Entry("Google Drive", Icons.Rounded.AddToDrive, if (settings.driveEmail.isBlank()) "Da collegare" else "${settings.driveFolders.size} cartelle") { push("drive", "Google Drive", "root") },
+            Entry("Spotify", Icons.Rounded.GraphicEq, if (sp.status == SpotifyStatus.CONNECTED) "Collegato" else "Nell’app") { push("spotify", "Spotify") }
         )
         "tracks" -> songs(local)
         "favorites" -> songs(sorted.filter { it.favorite })
@@ -205,8 +207,10 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             Entry("Aspetto iPod", Icons.Rounded.Palette, value = if (settings.midnight) "Midnight Black" else "Silver Classic") { push("appearance", "Aspetto iPod") },
             Entry("Comandi", Icons.Rounded.TouchApp, value = if (settings.controlMode == "buttons") "Solo tasti" else "Ruota e tasti") { push("controls", "Comandi") },
             Entry("Vibrazione", Icons.Rounded.Vibration, value = HapticNames[settings.hapticLevel]) { push("haptics", "Vibrazione") },
+            Entry("Colore alone", Icons.Rounded.Palette, value = glowOption(settings.glow).label) { push("glow", "Colore alone") },
             Entry("Sensibilità ruota", Icons.Rounded.Tune, value = "${(settings.sensitivity * 100).toInt()}%") { push("sensitivity", "Sensibilità ruota") },
             Entry("Account Google Drive", Icons.Rounded.AddToDrive, value = settings.driveEmail.ifBlank { "Non collegato" }) { push("account", "Account Google Drive") },
+            Entry("Backup impostazioni", Icons.Rounded.Storage, value = if (settings.backupUri.isBlank()) "Non attivo" else "Attivo") { push("backup", "Backup impostazioni") },
             Entry("Gestione cache", Icons.Rounded.Storage) { push("cache", "Gestione cache") },
             Entry("Qualità audio", Icons.Rounded.GraphicEq, value = "Originale") { info = "I file vengono riprodotti nella qualità originale, senza ricodifica. I formati disponibili dipendono dai decoder Android. La qualità Spotify si gestisce in Spotify." },
             Entry("Ordina musica", Icons.Rounded.Sort, value = settings.sort) { push("sort", "Ordinamento") },
@@ -215,11 +219,19 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
         )
         "appearance" -> listOf(
             Entry("Silver Classic", Icons.Rounded.LightMode, "Alluminio satinato", value = tick(!settings.midnight)) { vm.preference(Preferences.midnight, false) },
-            Entry("Midnight Black", Icons.Rounded.DarkMode, "Antracite metallizzato", value = tick(settings.midnight)) { vm.preference(Preferences.midnight, true) }
+            Entry("Midnight Black", Icons.Rounded.DarkMode, "Grafite, come il riferimento", value = tick(settings.midnight)) { vm.preference(Preferences.midnight, true) }
+        )
+        "glow" -> GlowOptions.map { o ->
+            Entry(o.label, Icons.Rounded.Palette, color = o.color ?: Ice, value = tick(settings.glow == o.key)) { vm.preference(Preferences.glow, o.key) }
+        }
+        "backup" -> listOf(
+            Entry("Salva backup su file", Icons.Rounded.Download, "Client ID Spotify, cartelle Drive, preferenze") { saveBackup() },
+            Entry("Ripristina da file", Icons.Rounded.Refresh, "Dopo una reinstallazione") { restoreBackup() },
+            Entry("Come funziona", Icons.Rounded.Info) { info = "Scegli una volta dove salvare il file (per esempio in Google Drive o in Download). Da quel momento Jarvis lo aggiorna da solo a ogni modifica: Client ID Spotify, cartelle musicali di Drive, tema, comandi, vibrazione, colore alone.\n\nSe reinstalli l’app Android cancella i dati: apri Impostazioni > Backup impostazioni > Ripristina da file e scegli quel file. Poi ricollega Google Drive e salva di nuovo il backup per riattivare l’aggiornamento automatico.\n\nNel file non ci sono password né token Google; il Client ID di Spotify è un identificativo pubblico." }
         )
         "controls" -> listOf(
-            Entry("Ruota e tasti", Icons.Rounded.TouchApp, "Gira il dito sull’anello per scorrere", value = tick(settings.controlMode != "buttons")) { vm.preference(Preferences.controlMode, "wheel") },
-            Entry("Solo tasti", Icons.Rounded.Tune, "Rotazione disattivata: usa i quattro tasti", value = tick(settings.controlMode == "buttons")) { vm.preference(Preferences.controlMode, "buttons") },
+            Entry("Ruota e tasti", Icons.Rounded.TouchApp, "Ruota il dito sull’anello; i tasti ◀◀ ▶▶ spostano la selezione", value = tick(settings.controlMode != "buttons")) { vm.preference(Preferences.controlMode, "wheel") },
+            Entry("Solo tasti", Icons.Rounded.Tune, "Rotazione disattivata: usa solo i tasti", value = tick(settings.controlMode == "buttons")) { vm.preference(Preferences.controlMode, "buttons") },
             Entry("Ruota nel lettore: brano", Icons.Rounded.SkipNext, "Ogni tre scatti cambia canzone", value = tick(settings.playerWheel != "seek")) { vm.preference(Preferences.playerWheel, "track") },
             Entry("Ruota nel lettore: cerca", Icons.Rounded.FastForward, "Ogni scatto sposta di 5 secondi", value = tick(settings.playerWheel == "seek")) { vm.preference(Preferences.playerWheel, "seek") }
         )
@@ -244,7 +256,6 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
     }
     LaunchedEffect(entries.size) { selected = selected.coerceIn(0, (entries.size - 1).coerceAtLeast(0)) }
     val listRoute = route.type != "playing" && route.type != "spotifyplaying" && route.type != "lock"
-    val buttonsOnly = settings.controlMode == "buttons"
     fun move(delta: Int) { if (entries.isNotEmpty()) selected = (selected + delta).coerceIn(0, entries.lastIndex) }
     // Un tocco sullo schermo vibra come un tasto: lo scatto della ruota ha invece il suo colpetto leggero.
     fun choose(index: Int) { haptics.press(); selected = index; entries.getOrNull(index)?.run?.invoke() }
@@ -295,7 +306,7 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
                                 AlbumGrid(entries, selected, scale, Modifier.weight(1f), ::choose)
                             } else {
                                 EntryList(entries, selected, scale, Modifier.weight(1f), ::choose,
-                                    tiles = route.type in setOf("settings", "appearance", "controls", "haptics", "account", "cache", "sort", "sensitivity", "drive", "drivemanage", "drivepick", "playlists"),
+                                    tiles = route.type in setOf("settings", "appearance", "controls", "haptics", "glow", "backup", "account", "cache", "sort", "sensitivity", "drive", "drivemanage", "drivepick", "playlists"),
                                     onOptions = { index -> entries[index].track?.let { songOptions = it } },
                                     queue = route.type == "queue", onRemove = vm::removeQueue, onMove = { vm.moveQueue(it, it - 1) })
                             }
@@ -336,12 +347,12 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
                     "play" -> if (route.type == "lock") unlock() else if (route.type == "spotifyplaying") spotify.toggle() else if (route.type != "spotify") {
                         if (playing.id == null) entries.getOrNull(selected)?.track?.let { play(entries.mapNotNull { it.track }, it) } else vm.togglePlay()
                     }
-                    "next" -> if (buttonsOnly && listRoute) move(1) else if (route.type == "spotifyplaying") spotify.next() else if (route.type != "spotify") vm.next()
-                    "previous" -> if (buttonsOnly && listRoute) move(-1) else if (route.type == "spotifyplaying") spotify.previous() else if (route.type != "spotify") vm.previous()
+                    "next" -> if (listRoute) move(1) else if (route.type == "spotifyplaying") spotify.next() else if (route.type != "spotify") vm.next()
+                    "previous" -> if (listRoute) move(-1) else if (route.type == "spotifyplaying") spotify.previous() else if (route.type != "spotify") vm.previous()
                 }
             }, onHold = { key ->
                 val direction = if (key == "next") 1 else -1
-                if (buttonsOnly && listRoute) move(direction) else if (route.type == "spotifyplaying") spotify.seekBy(direction * 5000L)
+                if (listRoute) move(direction) else if (route.type == "spotifyplaying") spotify.seekBy(direction * 5000L)
                 else if (route.type != "spotify" && route.type != "lock") vm.seekBy(direction * 5000L)
             })
             if (message != null) {

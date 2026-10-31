@@ -2,6 +2,8 @@ package it.jarvis.ipod
 
 import android.app.Application
 import android.content.ComponentName
+import android.content.Intent
+import android.net.Uri
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -47,6 +49,34 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }.onFailure { message.value = "Lettore non disponibile: ${it.localizedMessage}" }
         }, ContextCompat.getMainExecutor(application))
         viewModelScope.launch { while (isActive) { update(); delay(400) } }
+        keepBackupUpToDate()
+    }
+    private val resolver get() = getApplication<Application>().contentResolver
+    /** Se l'utente ha scelto un file di backup, lo riscrive (dopo una breve pausa) a ogni modifica delle impostazioni. */
+    @OptIn(FlowPreview::class)
+    private fun keepBackupUpToDate() {
+        viewModelScope.launch {
+            settings.map { SettingsBackup.toJson(it) to it.backupUri }.distinctUntilChanged().drop(1).debounce(1500).collect { (json, uri) ->
+                if (uri.isNotBlank()) try {
+                    withContext(Dispatchers.IO) { resolver.openOutputStream(Uri.parse(uri), "wt")?.use { it.write(json.toByteArray()) } }
+                } catch (e: Exception) { message.value = "Backup automatico non riuscito: ${e.localizedMessage ?: "file non raggiungibile"}. Salva di nuovo il backup." }
+            }
+        }
+    }
+    /** Salva il backup nel file scelto e lo tiene aggiornato da quel momento. */
+    fun saveBackup(uri: Uri) = launch {
+        withContext(Dispatchers.IO) { resolver.openOutputStream(uri, "wt")!!.use { it.write(SettingsBackup.toJson(settings.value).toByteArray()) } }
+        runCatching { resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+        graph.preferences.set(Preferences.backupUri, uri.toString())
+        message.value = "Backup salvato. Da ora si aggiorna da solo a ogni modifica."
+    }
+    fun restoreBackup(uri: Uri) = launch {
+        val text = withContext(Dispatchers.IO) { resolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) } }
+        val backup = SettingsBackup.fromJson(text)
+        if (backup == null) { message.value = "Il file scelto non è un backup di Jarvis."; return@launch }
+        graph.preferences.restore(backup)
+        message.value = "Ripristinati: ${backup.driveFolders.size} cartelle Drive" + (if (backup.spotifyClientId.isNotBlank()) ", Client ID Spotify" else "") +
+            ". Ricollega Google Drive. Per riattivare il backup automatico, salvalo di nuovo."
     }
     private fun update() {
         val p = controller ?: return

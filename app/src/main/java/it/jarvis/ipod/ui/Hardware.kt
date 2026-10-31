@@ -32,6 +32,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +53,15 @@ val Blue = Color(0xFF1788FF)
 val DisplayBlack = Color(0xFF060C14)
 val Violet = Color(0xFF6C4DF5)
 val GlowBlue = Color(0xFF45B0FF)
+
+/** Colori dell'alone della ruota, scelti in Impostazioni > Colore alone. Blu è il predefinito; "off" lo spegne. */
+internal class GlowOption(val key: String, val label: String, val color: Color?)
+internal val GlowOptions = listOf(
+    GlowOption("blue", "Blu", GlowBlue), GlowOption("violet", "Viola", Color(0xFF9B7BFF)), GlowOption("green", "Verde", Color(0xFF3DDC84)),
+    GlowOption("orange", "Arancione", Color(0xFFFF9F43)), GlowOption("pink", "Rosa", Color(0xFFFF5C8A)), GlowOption("red", "Rosso", Color(0xFFFF4D4D)),
+    GlowOption("white", "Bianco", Color(0xFFFFFFFF)), GlowOption("off", "Spento", null)
+)
+internal fun glowOption(key: String) = GlowOptions.firstOrNull { it.key == key } ?: GlowOptions[0]
 
 private val TwoPi = (2 * PI).toFloat()
 private fun degrees(radians: Float) = radians * 180f / PI.toFloat()
@@ -74,35 +84,47 @@ fun IPodShell(settings: Settings, haptics: Haptics, modifier: Modifier = Modifie
         val bitmap = Bitmap.createBitmap(pixels, 64, 64, Bitmap.Config.ARGB_8888).asImageBitmap()
         ShaderBrush(ImageShader(bitmap, TileMode.Repeated, TileMode.Repeated))
     }
+    // Il display è uno schermo "fisico": ignora la dimensione del carattere di sistema, tutto scala con la larghezza della scocca.
+    val graphite = remember { Bitmap.createBitmap(GraphiteGrid, GRAPHITE_COLUMNS, GRAPHITE_ROWS, Bitmap.Config.ARGB_8888).asImageBitmap() }
+    CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 1f)) {
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val width = minOf(maxWidth - 16.dp, (maxHeight - 12.dp) / 1.82f)
+        // La scocca occupa tutta l'altezza disponibile: il display si allunga, la ruota resta un cerchio proporzionale alla larghezza.
+        val height = maxOf(maxHeight - 12.dp, 200.dp)
+        val width = minOf(maxWidth - 12.dp, height / 1.6f)
         val scale = width.value / 400f
-        val height = width * 1.82f
         val shape = RoundedCornerShape(width * .105f)
+        val black = settings.midnight
         Box(Modifier.size(width, height).shadow(18.dp, shape).clip(shape)) {
             Canvas(Modifier.fillMaxSize()) {
                 val w = size.width; val h = size.height
                 val unit = w / 400f
-                val black = settings.midnight
-                val metal = if (black) listOf(Color(0xFF6A6D70), Color(0xFF292C30), Color(0xFF3C3E42), Color(0xFF202328))
-                    else listOf(Color(0xFFF0F0ED), Color(0xFFC3C5C6), Color(0xFFE1E1DE), Color(0xFFAAADAF))
-                drawRoundRect(Brush.linearGradient(metal, Offset(0f, 0f), Offset(w, h * .35f)), cornerRadius = CornerRadius(w * .105f))
-                drawRect(grainBrush)
-                drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = .65f), Color.Transparent, Color.Black.copy(alpha = .45f))),
-                    topLeft = Offset(2f * unit, 2f * unit), size = Size(w - 4 * unit, h - 4 * unit), cornerRadius = CornerRadius(w * .105f), style = Stroke(4f * unit))
+                if (black) {
+                    // Grafite: luci e ombre campionate dall'immagine di riferimento, bordo smussato con i suoi riflessi.
+                    drawImage(graphite, dstSize = IntSize(w.toInt() + 1, h.toInt() + 1), filterQuality = FilterQuality.High)
+                    drawRect(grainBrush)
+                    drawRoundRect(Brush.sweepGradient(*GraphiteRim, center = center),
+                        topLeft = Offset(1.4f * unit, 1.4f * unit), size = Size(w - 2.8f * unit, h - 2.8f * unit), cornerRadius = CornerRadius(w * .105f), style = Stroke(2.8f * unit))
+                } else {
+                    val metal = listOf(Color(0xFFF0F0ED), Color(0xFFC3C5C6), Color(0xFFE1E1DE), Color(0xFFAAADAF))
+                    drawRoundRect(Brush.linearGradient(metal, Offset(0f, 0f), Offset(w, h * .35f)), cornerRadius = CornerRadius(w * .105f))
+                    drawRect(grainBrush)
+                    drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = .65f), Color.Transparent, Color.Black.copy(alpha = .45f))),
+                        topLeft = Offset(2f * unit, 2f * unit), size = Size(w - 4 * unit, h - 4 * unit), cornerRadius = CornerRadius(w * .105f), style = Stroke(4f * unit))
+                }
                 drawRoundRect(Color.Black.copy(alpha = .24f), topLeft = Offset(5f * unit, 5f * unit), size = Size(w - 10 * unit, h - 10 * unit),
                     cornerRadius = CornerRadius(w * .10f), style = Stroke(1.3f * unit))
             }
             Column(Modifier.fillMaxSize().padding(horizontal = width * .066f, vertical = width * .073f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.fillMaxWidth().height(height * .535f).shadow(3.dp, RoundedCornerShape(13.dp * scale))
-                    .background(Brush.linearGradient(listOf(Color(0xFF35393D), Color.Black, Color(0xFF74777B))), RoundedCornerShape(13.dp * scale))
-                    .border(1.dp, Color(0xFF83888A), RoundedCornerShape(13.dp * scale)).padding(5.dp * scale)
+                Box(Modifier.fillMaxWidth().weight(1f).shadow(3.dp, RoundedCornerShape(13.dp * scale))
+                    .background(Brush.linearGradient(if (black) listOf(Color(0xFF05070C), Color.Black, Color(0xFF1B212C)) else listOf(Color(0xFF35393D), Color.Black, Color(0xFF74777B))), RoundedCornerShape(13.dp * scale))
+                    .border(1.dp, if (black) Color(0xFF3A4252) else Color(0xFF83888A), RoundedCornerShape(13.dp * scale)).padding(5.dp * scale)
                     .clip(RoundedCornerShape(8.dp * scale)).background(DisplayBlack)) { display(scale) }
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(width * .06f))
                 ClickWheel(width * .608f, settings, haptics, onStep, onButton, onHold)
                 Spacer(Modifier.height(width * .035f))
             }
         }
+    }
     }
 }
 
@@ -118,7 +140,10 @@ private fun ClickWheel(diameter: Dp, settings: Settings, haptics: Haptics, onSte
     val hold by rememberUpdatedState(onHold)
     val sensitivity by rememberUpdatedState(settings.sensitivity)
     val wheelMode by rememberUpdatedState(settings.controlMode != "buttons")
-    val ink = Color(0xFFE6EBF2)
+    val option = glowOption(settings.glow)
+    val lit = option.color != null
+    val accent = option.color ?: Color(0xFF8A94A3)
+    val ink = if (lit) androidx.compose.ui.graphics.lerp(Color(0xFFE6EBF2), accent, .14f) else Color(0xFFE6EBF2)
     var pressed by remember { mutableStateOf<String?>(null) }
     var touching by remember { mutableStateOf(false) }
     var angle by remember { mutableFloatStateOf(0f) }
@@ -193,13 +218,21 @@ private fun ClickWheel(diameter: Dp, settings: Settings, haptics: Haptics, onSte
             val c = center
             val u = size.width / 244f
             // Disco scuro con bordo appena illuminato.
-            drawCircle(Brush.radialGradient(listOf(Color(0xFF1F232A), Color(0xFF0B0D11)), center = c, radius = r), radius = r)
+            drawCircle(Brush.linearGradient(listOf(Color(0xFF0D0E12), Color(0xFF121419), Color(0xFF1B1D23)), start = Offset(c.x - r, c.y + r), end = Offset(c.x + r, c.y - r)), radius = r)
             drawCircle(Color.White.copy(alpha = .10f), radius = r - 1f * u, style = Stroke(1.2f * u))
             // Anello luminoso che "respira"; si accende quando lo si tocca.
             val ringRadius = r - 3.5f * u
             val energy = (0.7f + 0.3f * breathe) * (1f + 0.55f * glow)
-            for ((width, alpha) in listOf(13f to .06f, 8f to .10f, 4.5f to .20f, 1.8f to .85f)) {
-                drawCircle(GlowBlue.copy(alpha = (alpha * energy).coerceAtMost(1f)), radius = ringRadius, style = Stroke(width * u))
+            if (lit) {
+                // Alone morbido anche fuori dal disco, come nel riferimento.
+                for ((extra, alpha) in listOf(18f to .035f, 13f to .055f, 9f to .09f, 5f to .15f)) {
+                    drawCircle(accent.copy(alpha = (alpha * energy).coerceAtMost(1f)), radius = r + extra * u / 2f - 1f * u, style = Stroke(extra * u))
+                }
+                for ((width, alpha) in listOf(13f to .06f, 8f to .10f, 4.5f to .20f, 1.8f to .85f)) {
+                    drawCircle(accent.copy(alpha = (alpha * energy).coerceAtMost(1f)), radius = ringRadius, style = Stroke(width * u))
+                }
+            } else {
+                drawCircle(Color.White.copy(alpha = .16f), radius = ringRadius, style = Stroke(1.8f * u))
             }
             drawCircle(Color.Black.copy(alpha = .5f), radius = ringRadius - 7f * u, style = Stroke(3f * u))
             // Tacche: quelle vicine al dito si accendono.
@@ -211,13 +244,13 @@ private fun ClickWheel(diameter: Dp, settings: Settings, haptics: Haptics, onSte
                 val near = (1f - abs(distance) / (PI.toFloat() / 4f)).coerceIn(0f, 1f) * glow
                 val dx = cos(tick); val dy = sin(tick)
                 drawLine(
-                    color = if (near > 0f) GlowBlue.copy(alpha = .15f + .8f * near) else Color.White.copy(alpha = .10f),
+                    color = if (near > 0f && lit) accent.copy(alpha = .15f + .8f * near) else Color.White.copy(alpha = .10f),
                     start = Offset(c.x + dx * r * .60f, c.y + dy * r * .60f),
                     end = Offset(c.x + dx * r * .66f, c.y + dy * r * .66f),
                     strokeWidth = 1.6f * u, cap = StrokeCap.Round)
             }
             // Scia a cometa dietro al dito.
-            if (glow > 0.01f) {
+            if (glow > 0.01f && lit) {
                 val head = angle
                 val sweep = (head - trail.value).coerceIn(-2.2f, 2.2f)
                 if (abs(sweep) > 0.02f) {
@@ -227,40 +260,41 @@ private fun ClickWheel(diameter: Dp, settings: Settings, haptics: Haptics, onSte
                         val t = i / segments.toFloat()
                         val begin = head - sweep * (1f - t)
                         drawArc(
-                            color = GlowBlue.copy(alpha = (t * t * glow * .95f).coerceIn(0f, 1f)),
+                            color = accent.copy(alpha = (t * t * glow * .95f).coerceIn(0f, 1f)),
                             startAngle = degrees(begin), sweepAngle = degrees(sweep / segments * 1.15f), useCenter = false,
                             topLeft = Offset(c.x - ringRadius, c.y - ringRadius), size = Size(diameterArc, diameterArc),
                             style = Stroke(width = 4.4f * u, cap = StrokeCap.Butt))
                     }
                 }
                 val head2 = Offset(c.x + cos(head) * ringRadius, c.y + sin(head) * ringRadius)
-                drawCircle(Brush.radialGradient(listOf(Color(0xFFBFE5FF).copy(alpha = .9f * glow), Color.Transparent), center = head2, radius = 15f * u),
+                drawCircle(Brush.radialGradient(listOf(androidx.compose.ui.graphics.lerp(accent, Color.White, .6f).copy(alpha = .9f * glow), Color.Transparent), center = head2, radius = 15f * u),
                     radius = 15f * u, center = head2)
                 drawCircle(Color.White.copy(alpha = .95f * glow), radius = 2.6f * u, center = head2)
             }
             // Tasto centrale: si abbassa e si illumina quando premuto.
             val buttonRadius = r * .387f * centerSize
             drawCircle(Color.Black.copy(alpha = .45f), radius = r * .387f + 3f * u)
-            drawCircle(Brush.linearGradient(listOf(Color(0xFF5A5E66), Color(0xFF30333A), Color(0xFF454951)),
+            drawCircle(Brush.linearGradient(listOf(Color(0xFF4B4E5B), Color(0xFF3D404C), Color(0xFF50535F)),
                 start = Offset(c.x - r * .39f, c.y - r * .39f), end = Offset(c.x + r * .39f, c.y + r * .39f)), radius = buttonRadius)
             drawCircle(Color.White.copy(alpha = .22f), radius = buttonRadius - 1.2f * u, style = Stroke(.8f * u))
+            if (lit) drawCircle(accent.copy(alpha = .30f * energy.coerceAtMost(1.2f)), radius = buttonRadius + 1.5f * u, style = Stroke(1.6f * u))
             if (pressed == "select") {
                 drawCircle(Color.Black.copy(alpha = .12f), radius = buttonRadius)
-                drawCircle(GlowBlue.copy(alpha = .65f), radius = buttonRadius, style = Stroke(2.4f * u))
+                drawCircle(accent.copy(alpha = .65f), radius = buttonRadius, style = Stroke(2.4f * u))
             }
             // Onda nel punto toccato.
             val wave = ripple.value
             if (wave < 1f) {
                 val waveRadius = 6f * u + wave * r * .5f
-                drawCircle(GlowBlue.copy(alpha = (1f - wave) * .12f), radius = waveRadius, center = ripplePos)
-                drawCircle(GlowBlue.copy(alpha = (1f - wave) * .55f), radius = waveRadius, center = ripplePos, style = Stroke(2f * u))
+                drawCircle(accent.copy(alpha = (1f - wave) * .12f), radius = waveRadius, center = ripplePos)
+                drawCircle(accent.copy(alpha = (1f - wave) * .55f), radius = waveRadius, center = ripplePos, style = Stroke(2f * u))
             }
         }
         fun Modifier.control(name: String, label: String) = semantics {
             contentDescription = label; role = Role.Button
             onClick { button(name); true }
         }
-        fun tone(name: String) = if (pressed == name) GlowBlue else ink
+        fun tone(name: String) = if (pressed == name) accent else ink
         Text("MENU", color = tone("menu"), fontSize = (17f * scale).sp, fontWeight = FontWeight.Medium,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = diameter * .045f).control("menu", "MENU, indietro"))
         SkipGlyph(false, tone("previous"), Modifier.align(Alignment.CenterStart).padding(start = diameter * .045f).size(diameter * .12f).control("previous", "Brano precedente"))

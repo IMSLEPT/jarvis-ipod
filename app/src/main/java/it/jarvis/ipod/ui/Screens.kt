@@ -221,29 +221,35 @@ internal fun AlbumGrid(entries: List<Entry>, selected: Int, scale: Float, modifi
     }
 }
 
-/** Sei icone grandi, come la schermata delle app: serve alla libreria locale. */
+/** Icone grandi, come la schermata delle app: libreria locale più Drive e Spotify. Si adatta all'altezza disponibile. */
 @Composable
 internal fun IconGrid(entries: List<Entry>, selected: Int, scale: Float, modifier: Modifier, onSelect: (Int) -> Unit) {
     val tiles = listOf(
         listOf(Color(0xFFFF5C7A), Color(0xFFE0245E)), listOf(Color(0xFFB7BCC6), Color(0xFF7D8491)), listOf(Color(0xFF6C7A8E), Color(0xFF414B5C)),
-        listOf(Color(0xFF3F8CFF), Color(0xFF1E4FBF)), listOf(Color(0xFFFF4D6D), Color(0xFFB0194C)), listOf(Color(0xFFFFA83C), Color(0xFFE06A12)))
-    Column(modifier.padding(horizontal = 10.dp * scale, vertical = 8.dp * scale), verticalArrangement = Arrangement.spacedBy(10.dp * scale)) {
-        repeat(2) { row ->
-            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp * scale)) {
-                repeat(3) { col ->
-                    val index = row * 3 + col
-                    val e = entries.getOrNull(index)
-                    if (e == null) Spacer(Modifier.weight(1f)) else {
-                        Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp * scale))
-                            .background(if (selected == index) Color.White.copy(alpha = .09f) else Color.Transparent)
-                            .border(if (selected == index) 1.5.dp else 0.dp, if (selected == index) GlowBlue else Color.Transparent, RoundedCornerShape(14.dp * scale))
-                            .clickable { onSelect(index) }.padding(4.dp * scale), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(Modifier.size(54.dp * scale).clip(RoundedCornerShape(14.dp * scale)).background(Brush.verticalGradient(tiles[index])), contentAlignment = Alignment.Center) {
-                                Icon(e.icon, null, tint = Color.White, modifier = Modifier.size(30.dp * scale))
+        listOf(Color(0xFF3F8CFF), Color(0xFF1E4FBF)), listOf(Color(0xFFFF4D6D), Color(0xFFB0194C)), listOf(Color(0xFFFFA83C), Color(0xFFE06A12)),
+        listOf(Color(0xFF3FBF6B), Color(0xFF1E8A48)), listOf(Color(0xFF1ED760), Color(0xFF12A04A)))
+    val rows = ((entries.size + 2) / 3).coerceAtLeast(1)
+    BoxWithConstraints(modifier) {
+        val rowHeight = (maxHeight - 16.dp * scale - 10.dp * scale * (rows - 1)) / rows
+        val icon = (rowHeight - 40.dp * scale).coerceAtMost(54.dp * scale).coerceAtLeast(26.dp)
+        Column(Modifier.fillMaxSize().padding(horizontal = 10.dp * scale, vertical = 8.dp * scale), verticalArrangement = Arrangement.spacedBy(10.dp * scale)) {
+            repeat(rows) { row ->
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp * scale)) {
+                    repeat(3) { col ->
+                        val index = row * 3 + col
+                        val e = entries.getOrNull(index)
+                        if (e == null) Spacer(Modifier.weight(1f)) else {
+                            Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp * scale))
+                                .background(if (selected == index) Color.White.copy(alpha = .09f) else Color.Transparent)
+                                .border(if (selected == index) 1.5.dp else 0.dp, if (selected == index) GlowBlue else Color.Transparent, RoundedCornerShape(14.dp * scale))
+                                .clickable { onSelect(index) }.padding(4.dp * scale), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(Modifier.size(icon).clip(RoundedCornerShape(icon * .26f)).background(Brush.verticalGradient(tiles[index % tiles.size])), contentAlignment = Alignment.Center) {
+                                    Icon(e.icon, null, tint = Color.White, modifier = Modifier.size(icon * .56f))
+                                }
+                                Spacer(Modifier.height(5.dp * scale))
+                                Text(e.title, color = Color.White, fontSize = (11 * scale).sp, maxLines = 1, fontWeight = FontWeight.Medium)
+                                Text(e.subtitle ?: "", color = Muted, fontSize = (10 * scale).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
-                            Spacer(Modifier.height(6.dp * scale))
-                            Text(e.title, color = Color.White, fontSize = (11 * scale).sp, maxLines = 1, fontWeight = FontWeight.Medium)
-                            Text(e.subtitle ?: "", color = Muted, fontSize = (10 * scale).sp, maxLines = 1)
                         }
                     }
                 }
@@ -254,7 +260,7 @@ internal fun IconGrid(entries: List<Entry>, selected: Int, scale: Float, modifie
 
 @Composable
 internal fun MiniPlayer(playing: Playback, scale: Float, cover: Bitmap? = null, open: () -> Unit, toggle: () -> Unit, next: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(49.dp * scale).background(Brush.verticalGradient(listOf(Color(0xFF14202F), DisplayBlack))).clickable(onClick = open).padding(6.dp * scale), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 49.dp * scale).background(Brush.verticalGradient(listOf(Color(0xFF14202F), DisplayBlack))).clickable(onClick = open).padding(6.dp * scale), verticalAlignment = Alignment.CenterVertically) {
         Artwork(playing.artwork, Modifier.size(36.dp * scale), corner = 8.dp * scale, bitmap = cover)
         Column(Modifier.weight(1f).padding(horizontal = 8.dp * scale)) {
             Text(playing.title, color = Color.White, fontSize = (12 * scale).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
