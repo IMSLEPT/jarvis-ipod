@@ -404,13 +404,14 @@ private fun EntryList(entries: List<Entry>, selected: Int, scale: Float, modifie
                 }
             }
         }
-        // Indicatore di posizione discreto, visibile solo quando la lista scorre.
-        val info = state.layoutInfo
-        if(info.visibleItemsInfo.isNotEmpty() && entries.size > info.visibleItemsInfo.size) {
-            val total = entries.size.toFloat()
-            val start = state.firstVisibleItemIndex / total
-            val length = (info.visibleItemsInfo.size / total).coerceAtLeast(.08f)
-            Canvas(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(3.dp * scale).padding(vertical = 8.dp)) {
+        // Read layout state only during drawing: observing layoutInfo in composition causes
+        // remeasure -> recomposition loops. The scrollbar geometry and colours are unchanged.
+        Canvas(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(3.dp * scale).padding(vertical = 8.dp)) {
+            val info = state.layoutInfo
+            if(info.visibleItemsInfo.isNotEmpty() && entries.size > info.visibleItemsInfo.size) {
+                val total = entries.size.toFloat()
+                val start = state.firstVisibleItemIndex / total
+                val length = (info.visibleItemsInfo.size / total).coerceAtLeast(.08f)
                 drawRoundRect(Color.White.copy(alpha = .07f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width))
                 drawRoundRect(Color(0xFF3AA3FF), topLeft = androidx.compose.ui.geometry.Offset(0f, size.height * start.coerceAtMost(1f - length)),
                     size = androidx.compose.ui.geometry.Size(size.width, size.height * length), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width))

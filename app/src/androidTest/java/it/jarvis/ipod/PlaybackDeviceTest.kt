@@ -102,6 +102,9 @@ class PlaybackDeviceTest {
                 p.pause()
             }
             assertTrue("Background playback must advance", after > position + 500)
+            val pauseDeadline = SystemClock.uptimeMillis() + 5000
+            while (AudioReactive.playing && SystemClock.uptimeMillis() < pauseDeadline) Thread.sleep(30)
+            assertFalse("The service must confirm pause before checking the meter", AudioReactive.playing)
             assertEquals(0f, AudioReactive.level(SystemClock.uptimeMillis()))
             Thread.sleep(3500)
             val snapshot = runBlocking { app.preferences.data.first() }
