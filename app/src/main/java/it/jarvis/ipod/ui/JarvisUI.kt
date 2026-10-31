@@ -362,26 +362,53 @@ private fun EntryList(entries: List<Entry>, selected: Int, scale: Float, modifie
         val visible = state.layoutInfo.visibleItemsInfo
         if(visible.none { it.index == selected && it.offset >= 0 && it.offset + it.size <= state.layoutInfo.viewportEndOffset }) state.animateScrollToItem(selected)
     } }
-    LazyColumn(modifier, state = state) {
-        itemsIndexed(entries) { index, e ->
-            val active = selected == index
-            val text = if(active || !light) Ice else Color(0xFF19232B)
-            Row(Modifier.fillMaxWidth().heightIn(min = (if(light) 36.dp else 45.dp) * scale)
-                .background(if(active) Brush.verticalGradient(listOf(Color(0xFF269CFF), Color(0xFF0766D9))) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)))
-                .clickable { onSelect(index) }.padding(horizontal = 8.dp * scale, vertical = 6.dp * scale), verticalAlignment = Alignment.CenterVertically) {
-                if(!queue) Icon(e.icon, null, tint = if(active) Color.White else if(light && e.color == Ice) Color(0xFF374552) else e.color, modifier = Modifier.size((if(light) 20.dp else 22.dp) * scale))
-                Spacer(Modifier.width(8.dp * scale))
-                Column(Modifier.weight(1f)) {
-                    Text(e.title, color = text, fontSize = (if(light) 12.2f else 13.5f).times(scale).sp, fontWeight = if(active) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if(e.subtitle != null) Text(e.subtitle, color = if(active) Color(0xFFD3E8FF) else Muted, fontSize = (10.8f * scale).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val shape = RoundedCornerShape(12.dp * scale)
+    val tile = (if(light) 28.dp else 40.dp) * scale
+    Box(modifier) {
+        LazyColumn(Modifier.fillMaxSize(), state = state,
+            contentPadding = PaddingValues(horizontal = 6.dp * scale, vertical = 5.dp * scale), verticalArrangement = Arrangement.spacedBy(4.dp * scale)) {
+            itemsIndexed(entries) { index, e ->
+                val active = selected == index
+                val text = if(active || !light) Color.White else Color(0xFF19232B)
+                val rowBackground = when {
+                    active -> Brush.horizontalGradient(listOf(Color(0xFF3AA3FF), Color(0xFF1262E0)))
+                    light -> Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
+                    else -> Brush.horizontalGradient(listOf(Color(0xFF16212E), Color(0xFF111A25)))
                 }
-                if(queue) {
-                    Icon(Icons.Rounded.ArrowUpward, "Sposta prima", Modifier.size(30.dp * scale).clickable { onMove(index) }.padding(5.dp), tint = text)
-                    Icon(Icons.Rounded.Close, "Rimuovi dalla coda", Modifier.size(30.dp * scale).clickable { onRemove(index) }.padding(5.dp), tint = text)
-                } else if(e.track != null && onOptions != null) Icon(Icons.Rounded.MoreVert, "Opzioni ${e.title}", Modifier.size(32.dp * scale).clickable { onOptions(index) }.padding(5.dp), tint = text)
-                else Icon(Icons.Rounded.ChevronRight, null, tint = if(active) Ice else Color(0xFF87939E), modifier = Modifier.size(16.dp * scale))
+                Row(Modifier.fillMaxWidth().heightIn(min = (if(light) 42.dp else 56.dp) * scale).clip(shape).background(rowBackground)
+                    .clickable { onSelect(index) }.padding(horizontal = 7.dp * scale, vertical = 6.dp * scale), verticalAlignment = Alignment.CenterVertically) {
+                    if(!queue) {
+                        Box(Modifier.size(tile).clip(RoundedCornerShape(10.dp * scale))
+                            .background(if(active) Color.White.copy(alpha = .2f) else if(light && e.color == Ice) Color(0xFF1F2A36).copy(alpha = .08f) else e.color.copy(alpha = .16f)), contentAlignment = Alignment.Center) {
+                            Icon(e.icon, null, tint = if(active) Color.White else if(light && e.color == Ice) Color(0xFF374552) else e.color, modifier = Modifier.size(tile * .56f))
+                            if(!e.track?.artwork.isNullOrBlank()) coil.compose.AsyncImage(model = e.track?.artwork, contentDescription = null,
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
+                        Spacer(Modifier.width(10.dp * scale))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(e.title, color = text, fontSize = (if(light) 13f else 14f).times(scale).sp, fontWeight = if(active) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if(e.subtitle != null) Text(e.subtitle, color = if(active) Color(0xFFDCEBFF) else Muted, fontSize = (11f * scale).sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
+                    }
+                    if(queue) {
+                        Icon(Icons.Rounded.ArrowUpward, "Sposta prima", Modifier.size(30.dp * scale).clickable { onMove(index) }.padding(5.dp), tint = text)
+                        Icon(Icons.Rounded.Close, "Rimuovi dalla coda", Modifier.size(30.dp * scale).clickable { onRemove(index) }.padding(5.dp), tint = text)
+                    } else if(e.track != null && onOptions != null) Icon(Icons.Rounded.MoreVert, "Opzioni ${e.title}", Modifier.size(32.dp * scale).clickable { onOptions(index) }.padding(5.dp), tint = text)
+                    else Icon(Icons.Rounded.ChevronRight, null, tint = if(active) Color.White else Color(0xFF87939E), modifier = Modifier.size(18.dp * scale))
+                }
             }
-            if(!light && !active) HorizontalDivider(color = Color.White.copy(alpha = .045f))
+        }
+        // Indicatore di posizione discreto, visibile solo quando la lista scorre.
+        val info = state.layoutInfo
+        if(info.visibleItemsInfo.isNotEmpty() && entries.size > info.visibleItemsInfo.size) {
+            val total = entries.size.toFloat()
+            val start = state.firstVisibleItemIndex / total
+            val length = (info.visibleItemsInfo.size / total).coerceAtLeast(.08f)
+            Canvas(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(3.dp * scale).padding(vertical = 8.dp)) {
+                drawRoundRect(Color.White.copy(alpha = .07f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width))
+                drawRoundRect(Color(0xFF3AA3FF), topLeft = androidx.compose.ui.geometry.Offset(0f, size.height * start.coerceAtMost(1f - length)),
+                    size = androidx.compose.ui.geometry.Size(size.width, size.height * length), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width))
+            }
         }
     }
 }
@@ -413,14 +440,19 @@ private fun LibraryGrid(entries: List<Entry>, selected: Int, scale: Float, modif
 
 @Composable
 private fun MiniPlayer(playing: Playback, scale: Float, open: () -> Unit, toggle: () -> Unit, next: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(49.dp * scale).background(Brush.verticalGradient(listOf(Color(0xFF192330), DisplayBlack))).clickable(onClick = open).padding(6.dp * scale), verticalAlignment = Alignment.CenterVertically) {
-        Artwork(playing.artwork, Modifier.size(36.dp * scale))
-        Column(Modifier.weight(1f).padding(horizontal = 8.dp * scale)) {
-            Text(playing.title, color = Ice, fontSize = (12 * scale).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(playing.artist, color = Muted, fontSize = (10 * scale).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xFF1B2736), Color(0xFF0B121B))))) {
+        LinearProgressIndicator(progress = { if(playing.duration > 0) (playing.position.toFloat() / playing.duration).coerceIn(0f, 1f) else 0f },
+            color = Blue, trackColor = Color(0xFF263241), modifier = Modifier.fillMaxWidth().height(2.dp))
+        // Altezza minima, non fissa: se il testo cresce il riquadro si adatta invece di tagliarsi.
+        Row(Modifier.fillMaxWidth().heightIn(min = 54.dp * scale).clickable(onClick = open).padding(horizontal = 8.dp * scale, vertical = 7.dp * scale), verticalAlignment = Alignment.CenterVertically) {
+            Artwork(playing.artwork, Modifier.size(38.dp * scale))
+            Column(Modifier.weight(1f).padding(horizontal = 10.dp * scale)) {
+                Text(playing.title, color = Ice, fontSize = (12.5f * scale).sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(playing.artist, color = Muted, fontSize = (10.5f * scale).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Icon(if(playing.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Play o pausa", Modifier.size(38.dp * scale).clickable(onClick = toggle).padding(6.dp * scale), tint = Ice)
+            Icon(Icons.Rounded.SkipNext, "Successivo", Modifier.size(38.dp * scale).clickable(onClick = next).padding(6.dp * scale), tint = Ice)
         }
-        Icon(if(playing.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Play o pausa", Modifier.size(36.dp * scale).clickable(onClick = toggle).padding(6.dp * scale), tint = Ice)
-        Icon(Icons.Rounded.SkipNext, "Successivo", Modifier.size(36.dp * scale).clickable(onClick = next).padding(6.dp * scale), tint = Ice)
     }
 }
 

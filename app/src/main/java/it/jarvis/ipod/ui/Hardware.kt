@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
@@ -57,9 +58,10 @@ fun IPodShell(settings: Settings, modifier: Modifier = Modifier, display: @Compo
         ShaderBrush(ImageShader(bitmap, TileMode.Repeated, TileMode.Repeated))
     }
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val width = minOf(maxWidth - 16.dp, (maxHeight - 12.dp) / 1.82f)
+        // Quasi a tutto schermo: margini minimi; sui telefoni più alti il corpo si allunga e il display guadagna spazio.
+        val width = minOf(maxWidth - 8.dp, (maxHeight - 8.dp) / 1.82f)
         val scale = width.value / 400f
-        val height = width * 1.82f
+        val height = minOf(maxHeight - 8.dp, width * 2.12f)
         val shape = RoundedCornerShape(width * .105f)
         Box(Modifier.size(width, height).shadow(18.dp, shape).clip(shape)) {
             Canvas(Modifier.fillMaxSize()) {
@@ -76,11 +78,15 @@ fun IPodShell(settings: Settings, modifier: Modifier = Modifier, display: @Compo
                     cornerRadius = CornerRadius(w * .10f), style = Stroke(1.3f * unit))
             }
             Column(Modifier.fillMaxSize().padding(horizontal = width * .066f, vertical = width * .073f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.fillMaxWidth().height(height * .535f).shadow(3.dp, RoundedCornerShape(13.dp * scale))
+                Box(Modifier.fillMaxWidth().weight(1f).shadow(3.dp, RoundedCornerShape(13.dp * scale))
                     .background(Brush.linearGradient(listOf(Color(0xFF35393D), Color.Black, Color(0xFF74777B))), RoundedCornerShape(13.dp * scale))
                     .border(1.dp, Color(0xFF83888A), RoundedCornerShape(13.dp * scale)).padding(5.dp * scale)
-                    .clip(RoundedCornerShape(8.dp * scale)).background(DisplayBlack)) { display(scale) }
-                Spacer(Modifier.weight(1f))
+                    .clip(RoundedCornerShape(8.dp * scale)).background(DisplayBlack)) {
+                    // Il display ha misure proporzionali: ignora l'ingrandimento font di sistema, che tagliava i testi.
+                    val density = LocalDensity.current
+                    CompositionLocalProvider(LocalDensity provides Density(density.density, minOf(density.fontScale, 1f))) { display(scale) }
+                }
+                Spacer(Modifier.height(width * .045f))
                 ClickWheel(width * .608f, settings, onStep, onButton, onHold)
                 Spacer(Modifier.height(width * .035f))
             }

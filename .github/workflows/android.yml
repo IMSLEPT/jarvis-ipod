@@ -40,4 +40,4 @@ jobs:
           gh release create "v1.1.0-build${{ github.run_number }}" Jarvis-iPod-debug.apk \
             --target "$GITHUB_SHA" --prerelease \
             --title "Jarvis iPod 1.1.0 build ${{ github.run_number }}" \
-            --notes "Build automatica di ${GITHUB_SHA::7}. Aggiunge Drive con chiave API e cartelle condivise. Non provata su un Drive reale."
+            --notes "Build automatica di ${GITHUB_SHA::7}: $(git log -1 --pretty=%s). Non provata su dispositivo."
