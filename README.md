@@ -35,11 +35,12 @@ L’APK debug è firmato per sviluppo ed è installabile. Per aggiornare senza p
 | Comando | Azione |
 |---|---|
 | Giro orario / antiorario | Sposta la selezione nei menu |
-| Centro | Conferma; nel lettore apre le opzioni del brano |
-| MENU | Torna alla schermata precedente |
+| Centro | Su un brano lo avvia, e lo rimette in pausa se è già quello in ascolto; nel lettore play/pausa; sulle altre voci le apre |
+| MENU (in alto) | Sposta la selezione verso l’alto; nel lettore torna indietro |
+| Tasto in basso | Sposta la selezione verso il basso; nel lettore play/pausa |
+| MENU tenuto premuto | Torna alla schermata precedente (funzionano anche la freccia indietro del display e il gesto Indietro di Android) |
 | Sinistra / destra | Brano precedente / successivo |
 | Pressione prolungata laterale | Cerca nel brano a passi di 5 secondi |
-| Play / pausa | Controlla il lettore locale e Drive |
 | Ruota nel lettore | Cerca nel brano a passi di 5 secondi |
 | Tocca display | Seleziona direttamente; ⋮ apre le opzioni |
 
@@ -49,7 +50,7 @@ Le playlist possono contenere file locali e Drive. Le opzioni dei brani permetto
 
 ## Configurazione Google Drive, senza segreti nell’app
 
-Questa app usa **Google Identity Services `AuthorizationClient`** e Drive REST API v3. La registrazione OAuth Android è associata a **package e certificato di firma**: non occorrono un client secret, un backend, una API key o `google-services.json`.
+Questa app usa **Google Identity Services `AuthorizationClient`** e Drive REST API v3. La registrazione OAuth Android è associata a **package e certificato di firma**: non occorrono un client secret, un backend o `google-services.json`. In alternativa all’account c’è la modalità **chiave API + link di cartella condivisa** (sotto).
 
 1. Apri [Google Cloud Console](https://console.cloud.google.com/) e crea/seleziona un progetto.
 2. In **API e servizi → Libreria**, abilita **Google Drive API**.
@@ -92,6 +93,14 @@ I download sono facoltativi, controllano `capabilities.canDownload`, usano file 
 
 Drive non espone tag ID3 né copertine audio nelle normali risposte Files: viene mostrato il nome del file, «Google Drive» come artista e il nome della cartella come album. I tag incorporati dei file cloud non vengono estratti. I formati riproducibili dipendono da Android/Media3 e dal contenitore.
 
+### Drive senza account: chiave API e link di cartella condivisa
+
+1. In Google Cloud abilita **Google Drive API** e crea una **chiave API** (Credenziali → Crea credenziali → Chiave API). Consigliato limitarla all’API Google Drive. Se la leghi anche all’app Android servono package `it.jarvis.ipod` e SHA-1 della firma (cambia a ogni nuova firma): Jarvis invia `X-Android-Package` e `X-Android-Cert`.
+2. In Jarvis: **Google Drive → Chiave API di Google** e incolla la chiave.
+3. Su Drive condividi la cartella con **«Chiunque abbia il link»** (Visualizzatore), copia il link e usa **Aggiungi con link condiviso** (anche il solo ID funziona).
+
+Limiti: la chiave vede solo ciò che è condiviso con link (chi ha il link può leggere i file) e non permette di sfogliare l’intero Drive; con l’account collegato si usa invece il suo token. La chiave è una credenziale: finisce nel backup su file, da tenere in un posto privato.
+
 ## Spotify dentro Jarvis (App Remote)
 
 Dalla versione 1.1 Spotify si usa **senza uscire da Jarvis**, con l’SDK ufficiale [Spotify App Remote](https://developer.spotify.com/documentation/android) (AAR 0.8.0, Apache 2.0, in `app/libs/`, con Gson). L’app Spotify riproduce in background (audio, rete, cache e account restano suoi); Jarvis mostra brano e copertina, usa la stessa schermata del lettore e comanda play/pausa, precedente/successivo, cerca, casuale e ripeti, anche con la ruota. Si può riprendere la riproduzione o avviare un brano, album o playlist incollando un link «Condividi» o un URI `spotify:`.
@@ -109,7 +118,7 @@ Limiti: serve l’app Spotify installata; scegliere un brano preciso richiede **
 - **Midnight Black** è ora grafite metallico, con luci e ombre campionate dall'immagine di riferimento; **Silver Classic** resta disponibile. Il confronto visivo puntuale sul telefono non è stato eseguito.
 - La scocca occupa tutta l'altezza dello schermo e il testo del display non dipende dalla dimensione carattere di sistema.
 - La ruota e i tasti hanno un alone blu di base; in **Impostazioni > Colore alone** scegli un altro colore o spegnilo.
-- I tasti si possono toccare normalmente: ◀◀ e ▶▶ spostano la selezione nelle liste, nel lettore cambiano brano (pressione lunga: avanti/indietro di 5 s). La ruota funziona in più, tranne in modalità «Solo tasti».
+- I tasti si possono toccare normalmente (vedi tabella Comandi). La ruota funziona in più, tranne in modalità «Solo tasti».
 - **Impostazioni > Backup impostazioni**: scegli una volta un file (anche su Google Drive) e Jarvis lo aggiorna da solo a ogni modifica con Client ID Spotify, cartelle Drive, tema, comandi, vibrazione e colore. Dopo una reinstallazione usa *Ripristina da file*. Nel file non ci sono token né password. Se la nuova installazione ha una firma diversa, l'SHA-1 va comunque registrato di nuovo in Google Cloud e Spotify.
 
 ## Compilazione

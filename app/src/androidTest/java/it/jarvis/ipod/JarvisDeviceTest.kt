@@ -55,7 +55,8 @@ class JarvisDeviceTest {
         compose.activityRule.scenario.recreate()
         compose.waitForIdle()
         assertTrue(runBlocking { app.preferences.settings.first().midnight })
-        compose.onNodeWithContentDescription("MENU, indietro").performClick()
+        // MENU sale nella lista (il ritorno indietro è la pressione prolungata): la schermata resta la stessa.
+        compose.onNodeWithContentDescription("MENU, su (tieni premuto per tornare indietro)").performClick()
         compose.onNodeWithText("Aspetto iPod").assertIsDisplayed()
     }
 

@@ -7,7 +7,7 @@ import org.junit.Test
 class SettingsBackupTest {
     private val full = Settings(
         midnight = false, sensitivity = 1.5f, hapticLevel = 3, sort = "Artista", controlMode = "buttons", playerWheel = "seek",
-        glow = "violet", spotifyClientId = "abc123clientid", driveEmail = "x@y.z", backupUri = "content://file",
+        glow = "violet", spotifyClientId = "abc123clientid", driveApiKey = "AIzaSyExample", driveEmail = "x@y.z", backupUri = "content://file",
         driveFolders = listOf(DriveFolder("id1", "Musica"), DriveFolder("id2", "Dischi"))
     )
 

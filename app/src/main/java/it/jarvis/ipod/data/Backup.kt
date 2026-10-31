@@ -4,9 +4,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Copia delle impostazioni da conservare fuori dall'app (un file scelto dall'utente): Client ID di Spotify, cartelle musicali
- * di Drive e preferenze. Non contiene token, password né l'account Google: dopo un ripristino basta ricollegare Google.
- * Il Client ID di Spotify è un identificativo pubblico, non un segreto.
+ * Copia delle impostazioni da conservare fuori dall'app (un file scelto dall'utente): Client ID di Spotify, chiave API Google,
+ * cartelle musicali di Drive e preferenze. Non contiene token né l'account Google: dopo un ripristino basta ricollegare Google.
+ * Il Client ID di Spotify è un identificativo pubblico; la chiave API Google è una credenziale: il file va tenuto in un posto privato.
  */
 object SettingsBackup {
     private const val VERSION = 1
@@ -22,6 +22,7 @@ object SettingsBackup {
         .put("playerWheel", s.playerWheel)
         .put("glow", s.glow)
         .put("spotifyClientId", s.spotifyClientId)
+        .put("driveApiKey", s.driveApiKey)
         .put("driveFolders", JSONArray().apply { s.driveFolders.forEach { put(JSONObject().put("id", it.id).put("name", it.name)) } })
         .toString(2)
 
@@ -46,6 +47,7 @@ object SettingsBackup {
             playerWheel = o.optString("playerWheel", base.playerWheel).takeIf { it == "track" || it == "seek" } ?: base.playerWheel,
             glow = o.optString("glow", base.glow).ifBlank { base.glow },
             spotifyClientId = o.optString("spotifyClientId", "").trim(),
+            driveApiKey = o.optString("driveApiKey", "").trim(),
             driveFolders = folders
         )
     }

@@ -185,7 +185,8 @@ private fun ClickWheel(diameter: Dp, settings: Settings, haptics: Haptics, onSte
             // Come sulla tastiera: il tasto centrale vibra subito alla pressione.
             if (key == "select") haptics.press()
             while (active) {
-                val event = if (!dragged && (key == "next" || key == "previous")) {
+                // Pressione prolungata: avanti/indietro veloce sui lati (si ripete), «indietro» su MENU (una sola volta).
+                val event = if (!dragged && (key == "next" || key == "previous" || (key == "menu" && !held))) {
                     withTimeoutOrNull(if (held) 180L else 500L) { awaitPointerEvent() }
                 } else awaitPointerEvent()
                 if (event == null) { held = true; haptics.step(); hold(key); continue }
@@ -296,10 +297,10 @@ private fun ClickWheel(diameter: Dp, settings: Settings, haptics: Haptics, onSte
         }
         fun tone(name: String) = if (pressed == name) accent else ink
         Text("MENU", color = tone("menu"), fontSize = (17f * scale).sp, fontWeight = FontWeight.Medium,
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = diameter * .045f).control("menu", "MENU, indietro"))
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = diameter * .045f).control("menu", "MENU, su (tieni premuto per tornare indietro)"))
         SkipGlyph(false, tone("previous"), Modifier.align(Alignment.CenterStart).padding(start = diameter * .045f).size(diameter * .12f).control("previous", "Brano precedente"))
         SkipGlyph(true, tone("next"), Modifier.align(Alignment.CenterEnd).padding(end = diameter * .045f).size(diameter * .12f).control("next", "Brano successivo"))
-        Row(Modifier.align(Alignment.BottomCenter).padding(bottom = diameter * .045f).control("play", "Play o pausa"), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.align(Alignment.BottomCenter).padding(bottom = diameter * .045f).control("play", "Giù, play o pausa"), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.PlayArrow, "", tint = tone("play"), modifier = Modifier.size(diameter * .075f))
             Icon(Icons.Rounded.Pause, "", tint = tone("play"), modifier = Modifier.size(diameter * .075f))
         }

@@ -12,6 +12,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import it.jarvis.ipod.data.*
 import it.jarvis.ipod.drive.DriveFile
+import it.jarvis.ipod.drive.DriveLinks
 import it.jarvis.ipod.playback.PlaybackService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -137,12 +138,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             finally { driveBusy.value = false }
         }
     }
-    fun addDriveFolder(folder: DriveFolder) = launch {
+    fun addDriveFolder(folder: DriveFolder) = launch { saveDriveFolder(folder) }
+    private suspend fun saveDriveFolder(folder: DriveFolder) {
         val current = settings.value.driveFolders
         if (current.none { it.id == folder.id }) {
             graph.preferences.set(Preferences.driveFolders, Preferences.encodeFolders(current + folder))
         }
         message.value = "Cartella aggiunta: ${folder.name}"
+    }
+    /** Aggiunge una cartella da un link «Condividi» di Drive. Funziona con la chiave API anche senza account collegato. */
+    fun addDriveFolderFromLink(text: String) = launch {
+        val id = DriveLinks.folderId(text)
+        if (id == null) { message.value = "Link non riconosciuto. Incolla il link «Condividi» di una cartella di Google Drive."; return@launch }
+        try { saveDriveFolder(DriveFolder(id, graph.drive.folderName(id))) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { message.value = e.localizedMessage ?: "Cartella non raggiungibile" }
     }
     fun removeDriveFolder(id: String) = launch {
         graph.preferences.set(Preferences.driveFolders, Preferences.encodeFolders(settings.value.driveFolders.filter { it.id != id }))

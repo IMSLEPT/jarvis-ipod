@@ -72,6 +72,10 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
     val sp by spotify.state.collectAsStateWithLifecycle()
     var clientDialog by remember { mutableStateOf(false) }
     var clientText by remember { mutableStateOf("") }
+    var apiKeyDialog by remember { mutableStateOf(false) }
+    var apiKeyText by remember { mutableStateOf("") }
+    var folderLinkDialog by remember { mutableStateOf(false) }
+    var folderLinkText by remember { mutableStateOf("") }
     var linkDialog by remember { mutableStateOf(false) }
     var linkText by remember { mutableStateOf("") }
     val spotifyControls = remember(spotify) { PlayerControls(spotify::seekTo, spotify::shuffle, spotify::previous, spotify::toggle, spotify::next, spotify::repeat) }
@@ -87,8 +91,10 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
     val driveBrowse = route.type == "drive" && !driveList
     val drivePick = route.type == "drivepick"
     val driveLoading = driveBrowse || drivePick
-    LaunchedEffect(route.type, route.arg, query, settings.driveEmail) {
-        if (driveLoading && settings.driveEmail.isNotBlank()) {
+    // Drive si usa con l'account Google collegato oppure, solo per cartelle condivise con link, con una chiave API.
+    val driveReady = settings.driveEmail.isNotBlank() || settings.driveApiKey.isNotBlank()
+    LaunchedEffect(route.type, route.arg, query, settings.driveEmail, settings.driveApiKey) {
+        if (driveLoading && driveReady) {
             if (query.isNotBlank()) delay(350)
             vm.loadDrive(route.arg.ifBlank { "root" }, query, route.title, pick = drivePick)
         }
@@ -147,7 +153,7 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             Entry("Playlist", Icons.Rounded.QueueMusic, "${playlists.size}") { push("playlists", "Playlist") },
             Entry("Preferiti", Icons.Rounded.Favorite, "${tracks.count { it.favorite }}") { push("favorites", "Preferiti") },
             Entry("Recenti", Icons.Rounded.History, "${tracks.count { it.lastPlayed > 0 }}") { push("recent", "Recenti") },
-            Entry("Google Drive", Icons.Rounded.AddToDrive, if (settings.driveEmail.isBlank()) "Da collegare" else "${settings.driveFolders.size} cartelle") { push("drive", "Google Drive", "root") },
+            Entry("Google Drive", Icons.Rounded.AddToDrive, if (!driveReady) "Da collegare" else "${settings.driveFolders.size} cartelle") { push("drive", "Google Drive", "root") },
             Entry("Spotify", Icons.Rounded.GraphicEq, if (sp.status == SpotifyStatus.CONNECTED) "Collegato" else "Nell’app") { push("spotify", "Spotify") }
         )
         "tracks" -> songs(local)
@@ -164,11 +170,18 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             Entry("Nuova playlist", Icons.Rounded.Add, color = GlowBlue) { newPlaylist = true }
         ) + playlists.mapIndexed { index, p -> Entry(p.name, Icons.Rounded.QueueMusic, "${playlistEntries.count { it.playlistId == p.id }} brani", variant = index % 3) { push("playlist", p.name, p.id.toString()) } }
         "playlist" -> songs(playlistEntries.filter { it.playlistId.toString() == route.arg }.mapNotNull { entry -> tracks.find { it.id == entry.trackId } })
-        "drive" -> if (settings.driveEmail.isBlank()) listOf(Entry("Collega Google Drive", Icons.Rounded.AddToDrive, "Accedi al tuo account Google", Green) { connectDrive() })
-            else if (driveList) {
-                if (settings.driveFolders.isEmpty()) listOf(Entry("Scegli cartelle musicali", Icons.Rounded.CreateNewFolder, "Nessuna cartella selezionata", Green) { push("drivepick", "Scegli cartella", "root") })
-                else settings.driveFolders.map { f -> Entry(f.name, Icons.Rounded.Folder, "Cartella") { push("drive", f.name, f.id) } } +
-                    Entry("Gestisci cartelle", Icons.Rounded.Settings) { push("drivemanage", "Gestisci cartelle") }
+        "drive" -> if (!driveReady) listOf(
+            Entry("Chiave API e link cartella", Icons.Rounded.VpnKey, "Senza account: cartelle condivise con link", Green) { apiKeyText = settings.driveApiKey; apiKeyDialog = true },
+            Entry("Collega account Google", Icons.Rounded.AddToDrive, "Sfoglia le tue cartelle", Green) { connectDrive() },
+            Entry("Come funziona", Icons.Rounded.Info) { info = driveGuide(context) }
+        ) else if (driveList) buildList<Entry> {
+                settings.driveFolders.forEach { f -> add(Entry(f.name, Icons.Rounded.Folder, "Cartella") { push("drive", f.name, f.id) }) }
+                add(Entry("Aggiungi con link condiviso", Icons.Rounded.Link,
+                    if (settings.driveFolders.isEmpty()) "Nessuna cartella selezionata" else "Incolla il link della cartella", Green) { folderLinkText = ""; folderLinkDialog = true })
+                if (settings.driveEmail.isNotBlank()) add(Entry("Scegli dal tuo Drive", Icons.Rounded.CreateNewFolder, "Sfoglia il tuo account", Green) { push("drivepick", "Scegli cartella", "root") })
+                if (settings.driveFolders.isNotEmpty()) add(Entry("Gestisci cartelle", Icons.Rounded.Settings) { push("drivemanage", "Gestisci cartelle") })
+                add(Entry("Chiave API di Google", Icons.Rounded.VpnKey, if (settings.driveApiKey.isBlank()) "Non impostata" else "Impostata") { apiKeyText = settings.driveApiKey; apiKeyDialog = true })
+                add(Entry("Come funziona", Icons.Rounded.Info) { info = driveGuide(context) })
             } else driveFiles.map { f -> Entry(f.name, if (f.folder) Icons.Rounded.Folder else Icons.Rounded.MusicNote,
                 if (f.folder) "Cartella" else "Google Drive", track = if (f.folder) null else tracks.find { it.id == "drive:${f.id}" }) {
                 if (f.folder) push("drive", f.name, f.id)
@@ -182,7 +195,8 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
                 vm.addDriveFolder(DriveFolder(route.arg, route.title))
                 while (routes.size > 1 && routes.last().type == "drivepick") routes.removeAt(routes.lastIndex)
             })) + driveFiles.filter { it.folder }.map { f -> Entry(f.name, Icons.Rounded.Folder, "Apri") { push("drivepick", f.name, f.id) } }
-        "drivemanage" -> listOf(Entry("Aggiungi cartella", Icons.Rounded.CreateNewFolder) { push("drivepick", "Scegli cartella", "root") }) +
+        "drivemanage" -> listOf(Entry("Aggiungi con link condiviso", Icons.Rounded.Link) { folderLinkText = ""; folderLinkDialog = true }) +
+            (if (settings.driveEmail.isNotBlank()) listOf(Entry("Aggiungi dal tuo Drive", Icons.Rounded.CreateNewFolder) { push("drivepick", "Scegli cartella", "root") }) else emptyList()) +
             settings.driveFolders.map { f -> Entry(f.name, Icons.Rounded.Delete, "Tocca per rimuovere dall’elenco") { vm.removeDriveFolder(f.id) } }
         "spotify" -> if (settings.spotifyClientId.isBlank()) listOf(
             Entry("Imposta Client ID", Icons.Rounded.Edit, "Serve per collegare Spotify a Jarvis", SpotifyGreen) { clientText = ""; clientDialog = true },
@@ -209,13 +223,13 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             Entry("Vibrazione", Icons.Rounded.Vibration, value = HapticNames[settings.hapticLevel]) { push("haptics", "Vibrazione") },
             Entry("Colore alone", Icons.Rounded.Palette, value = glowOption(settings.glow).label) { push("glow", "Colore alone") },
             Entry("Sensibilità ruota", Icons.Rounded.Tune, value = "${(settings.sensitivity * 100).toInt()}%") { push("sensitivity", "Sensibilità ruota") },
-            Entry("Account Google Drive", Icons.Rounded.AddToDrive, value = settings.driveEmail.ifBlank { "Non collegato" }) { push("account", "Account Google Drive") },
+            Entry("Account Google Drive", Icons.Rounded.AddToDrive, value = settings.driveEmail.ifBlank { if (settings.driveApiKey.isBlank()) "Non collegato" else "Chiave API" }) { push("account", "Account Google Drive") },
             Entry("Backup impostazioni", Icons.Rounded.Storage, value = if (settings.backupUri.isBlank()) "Non attivo" else "Attivo") { push("backup", "Backup impostazioni") },
             Entry("Gestione cache", Icons.Rounded.Storage) { push("cache", "Gestione cache") },
             Entry("Qualità audio", Icons.Rounded.GraphicEq, value = "Originale") { info = "I file vengono riprodotti nella qualità originale, senza ricodifica. I formati disponibili dipendono dai decoder Android. La qualità Spotify si gestisce in Spotify." },
             Entry("Ordina musica", Icons.Rounded.Sort, value = settings.sort) { push("sort", "Ordinamento") },
             Entry(if (scanning) "Scansione in corso…" else "Scansiona musica", Icons.Rounded.Refresh) { requestAudio() },
-            Entry("Informazioni", Icons.Rounded.Info, value = "1.1") { info = "Jarvis 1.1\nLettore Android nativo con Click Wheel.\n\nInterfaccia ricreata autonomamente dal riferimento fornito. Nessuna affiliazione con Apple, Google o Spotify.\n\nRuota per navigare; il tasto centrale conferma, MENU torna indietro. Nel lettore la ruota cambia brano o cerca nel brano, a scelta in Impostazioni > Comandi. In modalità Solo tasti la ruota non gira e Precedente/Successivo spostano la selezione. Le opzioni ⋮ aggiungono i brani a coda e playlist." }
+            Entry("Informazioni", Icons.Rounded.Info, value = "1.1") { info = "Jarvis 1.1\nLettore Android nativo con Click Wheel.\n\nInterfaccia ricreata autonomamente dal riferimento fornito. Nessuna affiliazione con Apple, Google o Spotify.\n\nRuota per navigare. Nel lettore la ruota cambia brano o cerca nel brano, a scelta in Impostazioni > Comandi. Tasti: MENU (in alto) sale e il tasto in basso scende; ◀◀ ▶▶ cambiano brano (tieni premuto per ±5 s); il tasto centrale apre la voce, avvia il brano e lo mette in pausa; tenendo premuto MENU si torna indietro. In modalità Solo tasti la ruota non gira. Le opzioni ⋮ aggiungono i brani a coda e playlist." }
         )
         "appearance" -> listOf(
             Entry("Silver Classic", Icons.Rounded.LightMode, "Alluminio satinato", value = tick(!settings.midnight)) { vm.preference(Preferences.midnight, false) },
@@ -225,13 +239,13 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             Entry(o.label, Icons.Rounded.Palette, color = o.color ?: Ice, value = tick(settings.glow == o.key)) { vm.preference(Preferences.glow, o.key) }
         }
         "backup" -> listOf(
-            Entry("Salva backup su file", Icons.Rounded.Download, "Client ID Spotify, cartelle Drive, preferenze") { saveBackup() },
+            Entry("Salva backup su file", Icons.Rounded.Download, "Client ID Spotify, chiave API, cartelle Drive, preferenze") { saveBackup() },
             Entry("Ripristina da file", Icons.Rounded.Refresh, "Dopo una reinstallazione") { restoreBackup() },
-            Entry("Come funziona", Icons.Rounded.Info) { info = "Scegli una volta dove salvare il file (per esempio in Google Drive o in Download). Da quel momento Jarvis lo aggiorna da solo a ogni modifica: Client ID Spotify, cartelle musicali di Drive, tema, comandi, vibrazione, colore alone.\n\nSe reinstalli l’app Android cancella i dati: apri Impostazioni > Backup impostazioni > Ripristina da file e scegli quel file. Poi ricollega Google Drive e salva di nuovo il backup per riattivare l’aggiornamento automatico.\n\nNel file non ci sono password né token Google; il Client ID di Spotify è un identificativo pubblico." }
+            Entry("Come funziona", Icons.Rounded.Info) { info = "Scegli una volta dove salvare il file (per esempio in Google Drive o in Download). Da quel momento Jarvis lo aggiorna da solo a ogni modifica: Client ID Spotify, chiave API Google, cartelle musicali di Drive, tema, comandi, vibrazione, colore alone.\n\nSe reinstalli l’app Android cancella i dati: apri Impostazioni > Backup impostazioni > Ripristina da file e scegli quel file. Poi ricollega Google Drive e salva di nuovo il backup per riattivare l’aggiornamento automatico.\n\nNel file non ci sono token Google né password, ma c’è la chiave API di Google: conservalo in un posto privato." }
         )
         "controls" -> listOf(
-            Entry("Ruota e tasti", Icons.Rounded.TouchApp, "Ruota il dito sull’anello; i tasti ◀◀ ▶▶ spostano la selezione", value = tick(settings.controlMode != "buttons")) { vm.preference(Preferences.controlMode, "wheel") },
-            Entry("Solo tasti", Icons.Rounded.Tune, "Rotazione disattivata: usa solo i tasti", value = tick(settings.controlMode == "buttons")) { vm.preference(Preferences.controlMode, "buttons") },
+            Entry("Ruota e tasti", Icons.Rounded.TouchApp, "Ruota il dito sull’anello; MENU sale, il tasto in basso scende", value = tick(settings.controlMode != "buttons")) { vm.preference(Preferences.controlMode, "wheel") },
+            Entry("Solo tasti", Icons.Rounded.Tune, "Rotazione disattivata: MENU sale, il tasto in basso scende", value = tick(settings.controlMode == "buttons")) { vm.preference(Preferences.controlMode, "buttons") },
             Entry("Ruota nel lettore: brano", Icons.Rounded.SkipNext, "Ogni tre scatti cambia canzone", value = tick(settings.playerWheel != "seek")) { vm.preference(Preferences.playerWheel, "track") },
             Entry("Ruota nel lettore: cerca", Icons.Rounded.FastForward, "Ogni scatto sposta di 5 secondi", value = tick(settings.playerWheel == "seek")) { vm.preference(Preferences.playerWheel, "seek") }
         )
@@ -240,7 +254,12 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
         } + Entry("Come funziona", Icons.Rounded.Info) {
             info = "Ogni scatto della ruota e ogni tasto premuto fanno vibrare il telefono come la tastiera.\n\nDa Android 13 la vibrazione segue Impostazioni > Suono e vibrazione > Feedback tattile: se è disattivato nel sistema, il telefono non vibra neanche qui."
         }
-        "account" -> listOf(Entry("Collega / cambia account", Icons.Rounded.AddToDrive, settings.driveEmail.ifBlank { "OAuth Google" }) { connectDrive() }) +
+        "account" -> listOf(
+            Entry("Chiave API di Google", Icons.Rounded.VpnKey, if (settings.driveApiKey.isBlank()) "Non impostata" else "Impostata") { apiKeyText = settings.driveApiKey; apiKeyDialog = true },
+            Entry("Aggiungi cartella con link", Icons.Rounded.Link, "Cartella condivisa con «Chiunque abbia il link»") { folderLinkText = ""; folderLinkDialog = true },
+            Entry("Collega / cambia account", Icons.Rounded.AddToDrive, settings.driveEmail.ifBlank { "Accesso con Google" }) { connectDrive() },
+            Entry("Come funziona", Icons.Rounded.Info) { info = driveGuide(context) }
+        ) +
             if (settings.driveEmail.isNotBlank()) listOf(Entry("Scollega account", Icons.Rounded.Logout) { vm.disconnectDrive() }) else emptyList()
         "cache" -> listOf(
             Entry("Svuota cache streaming", Icons.Rounded.CleaningServices, "Limite automatico: 256 MB") { vm.clearCache() },
@@ -286,7 +305,7 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
                         "playing" -> NowPlaying(playing, current?.favorite == true, scale, controls, { current?.let { vm.favorite(it.id) } },
                             { push("queue", "Coda di riproduzione") }, { current?.let { songOptions = it } })
                         else -> {
-                            if (route.type == "search" || (driveBrowse && settings.driveEmail.isNotBlank())) {
+                            if (route.type == "search" || (driveBrowse && driveReady)) {
                                 TextField(query, { query = it; selected = 0 }, placeholder = { Text(if (route.type == "drive") "Cerca in questa cartella" else "Brani, album, artisti", fontSize = (12 * scale).sp) },
                                     leadingIcon = { Icon(Icons.Rounded.Search, null, Modifier.size(18.dp)) }, singleLine = true,
                                     textStyle = LocalTextStyle.current.copy(fontSize = (13 * scale).sp), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp))
@@ -337,23 +356,35 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
                 }
             }, onButton = { key ->
                 when (key) {
-                    "menu" -> back()
+                    // MENU (in alto) sale nelle liste, il tasto in basso scende; fuori dalle liste fanno «indietro» e play/pausa.
+                    "menu" -> if (listRoute) move(-1) else back()
+                    "play" -> when {
+                        route.type == "lock" -> unlock()
+                        listRoute -> move(1)
+                        route.type == "spotifyplaying" -> spotify.toggle()
+                        else -> vm.togglePlay()
+                    }
+                    // Tasto centrale: su un brano lo avvia (o mette in pausa se è già quello in riproduzione); altrove apre la voce.
                     "select" -> when (route.type) {
                         "lock" -> unlock()
                         "spotifyplaying" -> spotify.toggle()
-                        "playing" -> current?.let { songOptions = it }
-                        else -> entries.getOrNull(selected)?.run?.invoke()
+                        "playing" -> vm.togglePlay()
+                        else -> {
+                            val entry = entries.getOrNull(selected)
+                            val track = entry?.track
+                            if (track != null && playing.id == track.id) vm.togglePlay() else entry?.run?.invoke()
+                        }
                     }
-                    "play" -> if (route.type == "lock") unlock() else if (route.type == "spotifyplaying") spotify.toggle() else if (route.type != "spotify") {
-                        if (playing.id == null) entries.getOrNull(selected)?.track?.let { play(entries.mapNotNull { it.track }, it) } else vm.togglePlay()
-                    }
-                    "next" -> if (listRoute) move(1) else if (route.type == "spotifyplaying") spotify.next() else if (route.type != "spotify") vm.next()
-                    "previous" -> if (listRoute) move(-1) else if (route.type == "spotifyplaying") spotify.previous() else if (route.type != "spotify") vm.previous()
+                    "next" -> if (route.type == "spotifyplaying") spotify.next() else if (route.type != "spotify" && route.type != "lock") vm.next()
+                    "previous" -> if (route.type == "spotifyplaying") spotify.previous() else if (route.type != "spotify" && route.type != "lock") vm.previous()
                 }
             }, onHold = { key ->
                 val direction = if (key == "next") 1 else -1
-                if (listRoute) move(direction) else if (route.type == "spotifyplaying") spotify.seekBy(direction * 5000L)
-                else if (route.type != "spotify" && route.type != "lock") vm.seekBy(direction * 5000L)
+                when {
+                    key == "menu" -> back()
+                    route.type == "spotifyplaying" -> spotify.seekBy(direction * 5000L)
+                    route.type != "spotify" && route.type != "lock" -> vm.seekBy(direction * 5000L)
+                }
             })
             if (message != null) {
                 LaunchedEffect(message) { delay(5500); vm.message.value = null }
@@ -393,6 +424,16 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             vm.preference(Preferences.spotifyClientId, clientText.trim()); clientDialog = false
             if (clientText.isNotBlank()) spotify.disconnect()
         }) { Text("Salva") } }, dismissButton = { TextButton(onClick = { clientDialog = false }) { Text("Annulla") } })
+        if (apiKeyDialog) AlertDialog(onDismissRequest = { apiKeyDialog = false }, title = { Text("Chiave API di Google") }, text = {
+            OutlinedTextField(apiKeyText, { apiKeyText = it }, label = { Text("Chiave API") }, singleLine = true)
+        }, confirmButton = { TextButton(onClick = {
+            vm.preference(Preferences.driveApiKey, apiKeyText.trim()); apiKeyDialog = false
+            vm.message.value = if (apiKeyText.isBlank()) "Chiave API rimossa" else "Chiave salvata. Ora aggiungi una cartella con il suo link."
+        }) { Text("Salva") } }, dismissButton = { TextButton(onClick = { apiKeyDialog = false }) { Text("Annulla") } })
+        if (folderLinkDialog) AlertDialog(onDismissRequest = { folderLinkDialog = false }, title = { Text("Cartella condivisa") }, text = {
+            OutlinedTextField(folderLinkText, { folderLinkText = it }, label = { Text("Link della cartella") }, placeholder = { Text("https://drive.google.com/drive/folders/…") }, singleLine = true)
+        }, confirmButton = { TextButton(onClick = { vm.addDriveFolderFromLink(folderLinkText); folderLinkDialog = false }, enabled = folderLinkText.isNotBlank()) { Text("Aggiungi") } },
+            dismissButton = { TextButton(onClick = { folderLinkDialog = false }) { Text("Annulla") } })
         if (linkDialog) AlertDialog(onDismissRequest = { linkDialog = false }, title = { Text("Link Spotify") }, text = {
             OutlinedTextField(linkText, { linkText = it }, label = { Text("Link o URI") }, placeholder = { Text("https://open.spotify.com/track/…") }, singleLine = true)
         }, confirmButton = { TextButton(onClick = { if (playSpotifyLink(linkText)) linkDialog = false }, enabled = linkText.isNotBlank()) { Text("Riproduci") } },
@@ -402,6 +443,19 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
 }
 
 @Composable private fun Option(title: String, onClick: () -> Unit) { Text(title, Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp), fontSize = 15.sp) }
+
+private fun driveGuide(context: android.content.Context): String {
+    val sha1 = SpotifyBridge.signingSha1(context) ?: "non disponibile"
+    return "Due modi per usare le tue cartelle musicali di Drive:\n\n" +
+        "A) Chiave API + link (senza account)\n" +
+        "1. Su console.cloud.google.com crea un progetto e abilita «Google Drive API».\n" +
+        "2. Credenziali > Crea credenziali > Chiave API. Consigliato: limitala all’API Google Drive (se la leghi anche all’app Android, usa pacchetto ${context.packageName} e SHA-1 $sha1; cambia a ogni nuova firma).\n" +
+        "3. In Jarvis: Google Drive > Chiave API di Google > incolla la chiave.\n" +
+        "4. Su Drive condividi la cartella con «Chiunque abbia il link» (Visualizzatore), copia il link e in Jarvis scegli «Aggiungi con link condiviso».\n\n" +
+        "Funziona solo con cartelle condivise con link: chi ha il link può vedere i file. Non serve collegare l’account.\n\n" +
+        "B) Account Google\n" +
+        "Collega l’account (serve il client OAuth descritto nel README) per sfogliare le tue cartelle e scegliere quelle musicali, anche non condivise."
+}
 
 private fun spotifyGuide(context: android.content.Context, clientId: String): String {
     val sha1 = SpotifyBridge.signingSha1(context) ?: "non disponibile"

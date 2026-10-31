@@ -20,7 +20,7 @@ data class Settings(val midnight: Boolean = true, val sensitivity: Float = 1f, v
     val driveEmail: String = "", val sort: String = "Titolo", val cacheMb: Int = 256,
     val driveFolders: List<DriveFolder> = emptyList(), val controlMode: String = "wheel",
     val playerWheel: String = "track", val spotifyClientId: String = "",
-    val glow: String = "blue", val backupUri: String = "")
+    val glow: String = "blue", val backupUri: String = "", val driveApiKey: String = "")
 
 class Preferences(context: Context) {
     private val store = context.jarvisDataStore
@@ -39,6 +39,8 @@ class Preferences(context: Context) {
         val sort = stringPreferencesKey("sort")
         val cache = intPreferencesKey("cache_mb")
         val driveFolders = stringPreferencesKey("drive_folders")
+        /** Chiave API Google per leggere cartelle Drive condivise con link, senza collegare un account. */
+        val driveApiKey = stringPreferencesKey("drive_api_key")
         fun decodeFolders(raw: String?): List<DriveFolder> = runCatching {
             val array = org.json.JSONArray(raw ?: "[]")
             (0 until array.length()).map { array.getJSONObject(it) }
@@ -67,7 +69,8 @@ class Preferences(context: Context) {
             playerWheel = prefs[playerWheel] ?: "track",
             spotifyClientId = prefs[spotifyClientId] ?: "",
             glow = prefs[glow] ?: "blue",
-            backupUri = prefs[backupUri] ?: ""
+            backupUri = prefs[backupUri] ?: "",
+            driveApiKey = prefs[driveApiKey] ?: ""
         )
     }
     suspend fun <T> set(key: androidx.datastore.preferences.core.Preferences.Key<T>, value: T) { store.edit { it[key] = value } }
@@ -76,7 +79,7 @@ class Preferences(context: Context) {
         store.edit {
             it[midnight] = b.midnight; it[sensitivity] = b.sensitivity; it[hapticLevel] = b.hapticLevel
             it[sort] = b.sort; it[controlMode] = b.controlMode; it[playerWheel] = b.playerWheel; it[glow] = b.glow
-            it[spotifyClientId] = b.spotifyClientId; it[driveFolders] = encodeFolders(b.driveFolders)
+            it[spotifyClientId] = b.spotifyClientId; it[driveFolders] = encodeFolders(b.driveFolders); it[driveApiKey] = b.driveApiKey
         }
     }
     suspend fun savePlayback(ids: List<String>, index: Int, pos: Long, shuffled: Boolean, repeated: Int) {
