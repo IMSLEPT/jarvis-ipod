@@ -34,7 +34,7 @@ class DriveRepository(private val context: Context, private val auth: DriveAuth,
     suspend fun access(url: String): DriveAccess {
         val s = preferences.settings.first()
         if (s.driveEmail.isNotBlank()) return DriveAccess(url, emptyMap(), auth.accessToken())
-        if (s.driveApiKey.isBlank()) throw IOException("Collega Google Drive oppure inserisci una chiave API.")
+        if (s.driveApiKey.isBlank()) throw IOException("Prima inserisci l’API di Google Drive (pulsante «API di Google Drive») oppure collega l’account.")
         val withKey = url.toHttpUrl().newBuilder().addQueryParameter("key", s.driveApiKey).build().toString()
         val headers = buildMap {
             put("X-Android-Package", context.packageName)

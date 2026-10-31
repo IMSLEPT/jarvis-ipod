@@ -96,8 +96,8 @@ Drive non espone tag ID3 né copertine audio nelle normali risposte Files: viene
 ### Drive senza account: chiave API e link di cartella condivisa
 
 1. In Google Cloud abilita **Google Drive API** e crea una **chiave API** (Credenziali → Crea credenziali → Chiave API). Consigliato limitarla all’API Google Drive. Se la leghi anche all’app Android servono package `it.jarvis.ipod` e SHA-1 della firma (cambia a ogni nuova firma): Jarvis invia `X-Android-Package` e `X-Android-Cert`.
-2. In Jarvis: **Google Drive → Chiave API di Google** e incolla la chiave.
-3. Su Drive condividi la cartella con **«Chiunque abbia il link»** (Visualizzatore), copia il link e usa **Aggiungi con link condiviso** (anche il solo ID funziona).
+2. In Jarvis: **Google Drive → API di Google Drive** e incolla la chiave.
+3. Su Drive condividi la cartella con **«Chiunque abbia il link»** (Visualizzatore), copia il link e in **Google Drive** tocca **Cartella condivisa** (anche il solo ID funziona). I due pulsanti sono sempre in cima al menu Drive; la cartella resta salvata (DataStore e backup su file).
 
 Limiti: la chiave vede solo ciò che è condiviso con link (chi ha il link può leggere i file) e non permette di sfogliare l’intero Drive; con l’account collegato si usa invece il suo token. La chiave è una credenziale: finisce nel backup su file, da tenere in un posto privato.
 

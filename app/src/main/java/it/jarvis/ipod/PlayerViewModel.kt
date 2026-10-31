@@ -144,7 +144,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (current.none { it.id == folder.id }) {
             graph.preferences.set(Preferences.driveFolders, Preferences.encodeFolders(current + folder))
         }
-        message.value = "Cartella aggiunta: ${folder.name}"
+        message.value = "Cartella salvata: ${folder.name}" +
+            if (settings.value.backupUri.isBlank()) ". Attiva il Backup in Impostazioni per ritrovarla anche dopo una reinstallazione." else ""
     }
     /** Aggiunge una cartella da un link «Condividi» di Drive. Funziona con la chiave API anche senza account collegato. */
     fun addDriveFolderFromLink(text: String) = launch {

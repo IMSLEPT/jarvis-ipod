@@ -170,19 +170,17 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             Entry("Nuova playlist", Icons.Rounded.Add, color = GlowBlue) { newPlaylist = true }
         ) + playlists.mapIndexed { index, p -> Entry(p.name, Icons.Rounded.QueueMusic, "${playlistEntries.count { it.playlistId == p.id }} brani", variant = index % 3) { push("playlist", p.name, p.id.toString()) } }
         "playlist" -> songs(playlistEntries.filter { it.playlistId.toString() == route.arg }.mapNotNull { entry -> tracks.find { it.id == entry.trackId } })
-        "drive" -> if (!driveReady) listOf(
-            Entry("Chiave API e link cartella", Icons.Rounded.VpnKey, "Senza account: cartelle condivise con link", Green) { apiKeyText = settings.driveApiKey; apiKeyDialog = true },
-            Entry("Collega account Google", Icons.Rounded.AddToDrive, "Sfoglia le tue cartelle", Green) { connectDrive() },
-            Entry("Come funziona", Icons.Rounded.Info) { info = driveGuide(context) }
-        ) else if (driveList) buildList<Entry> {
-                settings.driveFolders.forEach { f -> add(Entry(f.name, Icons.Rounded.Folder, "Cartella") { push("drive", f.name, f.id) }) }
-                add(Entry("Aggiungi con link condiviso", Icons.Rounded.Link,
-                    if (settings.driveFolders.isEmpty()) "Nessuna cartella selezionata" else "Incolla il link della cartella", Green) { folderLinkText = ""; folderLinkDialog = true })
+        "drive" -> if (driveList) buildList<Entry> {
+                // Due pulsanti sempre in vista: uno per l'API di Google Drive, uno per la cartella condivisa (che resta salvata).
+                add(Entry("API di Google Drive", Icons.Rounded.VpnKey, if (settings.driveApiKey.isBlank()) "Tocca per inserirla" else "Inserita · tocca per cambiarla", Green) { apiKeyText = settings.driveApiKey; apiKeyDialog = true })
+                add(Entry("Cartella condivisa", Icons.Rounded.Link, if (settings.driveFolders.isEmpty()) "Incolla il link della cartella" else "Aggiungi un’altra cartella con il link", Green) { folderLinkText = ""; folderLinkDialog = true })
+                settings.driveFolders.forEach { f -> add(Entry(f.name, Icons.Rounded.Folder, "Cartella salvata") { push("drive", f.name, f.id) }) }
                 if (settings.driveEmail.isNotBlank()) add(Entry("Scegli dal tuo Drive", Icons.Rounded.CreateNewFolder, "Sfoglia il tuo account", Green) { push("drivepick", "Scegli cartella", "root") })
+                else add(Entry("Collega account Google", Icons.Rounded.AddToDrive, "In alternativa all’API") { connectDrive() })
                 if (settings.driveFolders.isNotEmpty()) add(Entry("Gestisci cartelle", Icons.Rounded.Settings) { push("drivemanage", "Gestisci cartelle") })
-                add(Entry("Chiave API di Google", Icons.Rounded.VpnKey, if (settings.driveApiKey.isBlank()) "Non impostata" else "Impostata") { apiKeyText = settings.driveApiKey; apiKeyDialog = true })
                 add(Entry("Come funziona", Icons.Rounded.Info) { info = driveGuide(context) })
-            } else driveFiles.map { f -> Entry(f.name, if (f.folder) Icons.Rounded.Folder else Icons.Rounded.MusicNote,
+            } else if (!driveReady) listOf(Entry("Inserisci l’API di Google Drive", Icons.Rounded.VpnKey, "Serve per vedere la cartella", Green) { apiKeyText = ""; apiKeyDialog = true })
+            else driveFiles.map { f -> Entry(f.name, if (f.folder) Icons.Rounded.Folder else Icons.Rounded.MusicNote,
                 if (f.folder) "Cartella" else "Google Drive", track = if (f.folder) null else tracks.find { it.id == "drive:${f.id}" }) {
                 if (f.folder) push("drive", f.name, f.id)
                 else {
@@ -195,7 +193,7 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
                 vm.addDriveFolder(DriveFolder(route.arg, route.title))
                 while (routes.size > 1 && routes.last().type == "drivepick") routes.removeAt(routes.lastIndex)
             })) + driveFiles.filter { it.folder }.map { f -> Entry(f.name, Icons.Rounded.Folder, "Apri") { push("drivepick", f.name, f.id) } }
-        "drivemanage" -> listOf(Entry("Aggiungi con link condiviso", Icons.Rounded.Link) { folderLinkText = ""; folderLinkDialog = true }) +
+        "drivemanage" -> listOf(Entry("Cartella condivisa (link)", Icons.Rounded.Link) { folderLinkText = ""; folderLinkDialog = true }) +
             (if (settings.driveEmail.isNotBlank()) listOf(Entry("Aggiungi dal tuo Drive", Icons.Rounded.CreateNewFolder) { push("drivepick", "Scegli cartella", "root") }) else emptyList()) +
             settings.driveFolders.map { f -> Entry(f.name, Icons.Rounded.Delete, "Tocca per rimuovere dall’elenco") { vm.removeDriveFolder(f.id) } }
         "spotify" -> if (settings.spotifyClientId.isBlank()) listOf(
@@ -255,8 +253,8 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             info = "Ogni scatto della ruota e ogni tasto premuto fanno vibrare il telefono come la tastiera.\n\nDa Android 13 la vibrazione segue Impostazioni > Suono e vibrazione > Feedback tattile: se è disattivato nel sistema, il telefono non vibra neanche qui."
         }
         "account" -> listOf(
-            Entry("Chiave API di Google", Icons.Rounded.VpnKey, if (settings.driveApiKey.isBlank()) "Non impostata" else "Impostata") { apiKeyText = settings.driveApiKey; apiKeyDialog = true },
-            Entry("Aggiungi cartella con link", Icons.Rounded.Link, "Cartella condivisa con «Chiunque abbia il link»") { folderLinkText = ""; folderLinkDialog = true },
+            Entry("API di Google Drive", Icons.Rounded.VpnKey, if (settings.driveApiKey.isBlank()) "Non inserita" else "Inserita") { apiKeyText = settings.driveApiKey; apiKeyDialog = true },
+            Entry("Cartella condivisa", Icons.Rounded.Link, "Cartella condivisa con «Chiunque abbia il link»") { folderLinkText = ""; folderLinkDialog = true },
             Entry("Collega / cambia account", Icons.Rounded.AddToDrive, settings.driveEmail.ifBlank { "Accesso con Google" }) { connectDrive() },
             Entry("Come funziona", Icons.Rounded.Info) { info = driveGuide(context) }
         ) +
@@ -424,13 +422,13 @@ fun JarvisUI(vm: PlayerViewModel, requestAudio: () -> Unit, connectDrive: () -> 
             vm.preference(Preferences.spotifyClientId, clientText.trim()); clientDialog = false
             if (clientText.isNotBlank()) spotify.disconnect()
         }) { Text("Salva") } }, dismissButton = { TextButton(onClick = { clientDialog = false }) { Text("Annulla") } })
-        if (apiKeyDialog) AlertDialog(onDismissRequest = { apiKeyDialog = false }, title = { Text("Chiave API di Google") }, text = {
-            OutlinedTextField(apiKeyText, { apiKeyText = it }, label = { Text("Chiave API") }, singleLine = true)
+        if (apiKeyDialog) AlertDialog(onDismissRequest = { apiKeyDialog = false }, title = { Text("API di Google Drive") }, text = {
+            OutlinedTextField(apiKeyText, { apiKeyText = it }, label = { Text("API / chiave API") }, singleLine = true)
         }, confirmButton = { TextButton(onClick = {
             vm.preference(Preferences.driveApiKey, apiKeyText.trim()); apiKeyDialog = false
-            vm.message.value = if (apiKeyText.isBlank()) "Chiave API rimossa" else "Chiave salvata. Ora aggiungi una cartella con il suo link."
+            vm.message.value = if (apiKeyText.isBlank()) "API rimossa" else "API salvata. Ora tocca «Cartella condivisa» e incolla il link."
         }) { Text("Salva") } }, dismissButton = { TextButton(onClick = { apiKeyDialog = false }) { Text("Annulla") } })
-        if (folderLinkDialog) AlertDialog(onDismissRequest = { folderLinkDialog = false }, title = { Text("Cartella condivisa") }, text = {
+        if (folderLinkDialog) AlertDialog(onDismissRequest = { folderLinkDialog = false }, title = { Text("Cartella condivisa di Drive") }, text = {
             OutlinedTextField(folderLinkText, { folderLinkText = it }, label = { Text("Link della cartella") }, placeholder = { Text("https://drive.google.com/drive/folders/…") }, singleLine = true)
         }, confirmButton = { TextButton(onClick = { vm.addDriveFolderFromLink(folderLinkText); folderLinkDialog = false }, enabled = folderLinkText.isNotBlank()) { Text("Aggiungi") } },
             dismissButton = { TextButton(onClick = { folderLinkDialog = false }) { Text("Annulla") } })
@@ -450,8 +448,8 @@ private fun driveGuide(context: android.content.Context): String {
         "A) Chiave API + link (senza account)\n" +
         "1. Su console.cloud.google.com crea un progetto e abilita «Google Drive API».\n" +
         "2. Credenziali > Crea credenziali > Chiave API. Consigliato: limitala all’API Google Drive (se la leghi anche all’app Android, usa pacchetto ${context.packageName} e SHA-1 $sha1; cambia a ogni nuova firma).\n" +
-        "3. In Jarvis: Google Drive > Chiave API di Google > incolla la chiave.\n" +
-        "4. Su Drive condividi la cartella con «Chiunque abbia il link» (Visualizzatore), copia il link e in Jarvis scegli «Aggiungi con link condiviso».\n\n" +
+        "3. In Jarvis: Google Drive > «API di Google Drive» > incolla la chiave.\n" +
+        "4. Su Drive condividi la cartella con «Chiunque abbia il link» (Visualizzatore), copia il link e in Jarvis tocca «Cartella condivisa» e incollalo. La cartella resta salvata.\n\n" +
         "Funziona solo con cartelle condivise con link: chi ha il link può vedere i file. Non serve collegare l’account.\n\n" +
         "B) Account Google\n" +
         "Collega l’account (serve il client OAuth descritto nel README) per sfogliare le tue cartelle e scegliere quelle musicali, anche non condivise."
