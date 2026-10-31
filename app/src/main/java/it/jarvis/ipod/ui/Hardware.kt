@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.media.AudioManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.foundation.Canvas
@@ -67,20 +66,23 @@ fun IPodShell(settings: Settings, modifier: Modifier = Modifier, display: @Compo
     val neon = remember { NeonState() }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val audioManager = LocalContext.current.getSystemService(AudioManager::class.java)
-    LaunchedEffect(settings.neon, lifecycle) {
-        if (!settings.neon) { neon.energy = 0f; return@LaunchedEffect }
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            var volume = 0f
-            var lastVolumeCheck = 0L
-            while (true) withInfiniteAnimationFrameNanos { frame ->
-                if (frame - lastVolumeCheck >= 150_000_000L) {
-                    val maximum = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
-                    volume = if (audioManager.isStreamMute(AudioManager.STREAM_MUSIC)) 0f
-                        else audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maximum
-                    lastVolumeCheck = frame
-                }
-                neon.tick(frame, volume)
+    val lifecycleState by lifecycle.currentStateFlow.collectAsState()
+    LaunchedEffect(settings.neon, lifecycleState) {
+        if (!settings.neon || !lifecycleState.isAtLeast(Lifecycle.State.STARTED)) {
+            neon.energy = 0f
+            return@LaunchedEffect
+        }
+        // Keep Compose's animation clock/policy: a separate lifecycle scope loses the test clock.
+        var volume = 0f
+        var lastVolumeCheck = 0L
+        while (true) withInfiniteAnimationFrameNanos { frame ->
+            if (frame - lastVolumeCheck >= 150_000_000L) {
+                val maximum = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                volume = if (audioManager.isStreamMute(AudioManager.STREAM_MUSIC)) 0f
+                    else audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maximum
+                lastVolumeCheck = frame
             }
+            neon.tick(frame, volume)
         }
     }
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

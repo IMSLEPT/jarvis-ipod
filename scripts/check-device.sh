@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 mkdir -p device-reports
+trap 'adb logcat -d > device-reports/logcat.txt 2>/dev/null || true' EXIT
 apk=artifacts/app/build/outputs/apk/debug/app-debug.apk
 tests=artifacts/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb install artifacts/compatibility-fixtures/upgrade-from.apk
 adb install "$tests"
 # Real framework tests: wheel/theme, neon setting, local/background and offline Drive playback.
-adb shell am instrument -w it.jarvis.ipod.test/androidx.test.runner.AndroidJUnitRunner | tee device-reports/instrumentation.txt
+timeout 360s adb shell am instrument -w it.jarvis.ipod.test/androidx.test.runner.AndroidJUnitRunner | tee device-reports/instrumentation.txt
 grep -q 'OK (3 tests)' device-reports/instrumentation.txt
 # The app is debuggable: seed a sentinel in its private sandbox and check it after install -r.
 adb shell am force-stop it.jarvis.ipod
