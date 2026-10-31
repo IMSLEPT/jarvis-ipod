@@ -21,3 +21,28 @@ La Release viene pubblicata solo dopo compilazione APK e test strumentali, test 
 Non provato su un telefono fisico: resa del neon nei due temi, fluidità/consumi, allineamento percepito dei bassi con cuffie Bluetooth, risposta al volume dei diversi dispositivi, aggiornamento sul Pixel con i dati personali, accesso Drive reale e OAuth. Il rilevamento usa il PCM del lettore interno: non ascolta audio prodotto dall'app Spotify esterna. I buffer di riproduzione e Bluetooth possono introdurre ritardo e la sensibilità ai bassi dipende dal brano.
 
 Chiavi private e contenuto dei Secrets non sono inclusi nei sorgenti, negli APK o negli allegati dei test.
+
+## Esito effettivo — 31 ottobre 2026
+
+APK 1.1.1, versionCode **215630330**, commit applicativo `ef81eec229f19b85e67db43b2f4f33af7170156a`.
+
+[GitHub Actions: esecuzione completa riuscita](https://github.com/IMSLEPT/jarvis-ipod/actions/runs/41222493615).
+
+| Controllo | Esito reale |
+| --- | --- |
+| Compilazione APK e APK test | Superata |
+| Test JVM (bassi/PCM, inviluppo/volume/colore, rotella, link Drive) | 27 test, 0 errori, 0 fallimenti |
+| Android Lint | 0 errori, 21 avvisi; nessun baseline aggiunto |
+| Emulatore Android 11 AOSP ATD x86_64, KVM | 3 test superati in 10,277 secondi |
+| UI emulata | Gesto circolare, selezione, tema, interruttore neon e persistenza dopo ricreazione |
+| Audio emulato | PCM effettivamente letto dal meter, pausa confermata dal servizio, background e Drive offline |
+| Aggiornamento reale con `adb install -r` | Da versionCode 1000 a 215630330, con la stessa firma; installazione riuscita |
+| Conservazione dati emulatore | Preferenze DataStore e database byte per byte identici dopo aggiornamento; file sentinella conservato |
+| Firma APK | Verificata; certificato permanente corrispondente al Secret |
+| Confronto sorgenti con `dc98099` | Icona/risorse, manifest, intero codice Drive, archivio della libreria, ViewModel e MainActivity invariati |
+
+Le prime esecuzioni hanno fallito nei controlli UI: il ridisegno dello scrollbar leggeva lo stato del layout durante la composizione, provocando ricomposizioni continue. Lo stato ora viene letto soltanto durante il disegno, mantenendo geometria e colori. È stato inoltre corretto il test della pausa per attendere la conferma asincrona del servizio; il meter non viene dichiarato fermo prima di quella conferma. Il run sopra è quello finale, completamente riuscito.
+
+Il certificato permanente ha SHA-1 `C7:B9:F3:29:D4:3E:4F:0E:5F:76:69:FB:A5:55:9A:54:D9:34:E8:5A`, da autorizzare in Google Cloud soltanto se si usa OAuth con account Google.
+
+I test ATD non costituiscono una verifica visiva della resa grafica e non sono prove su un telefono fisico. Restano validi i limiti indicati sopra. I dati dell'emulatore sono sintetici, non i dati personali del proprietario.
