@@ -8,18 +8,30 @@ import kotlinx.coroutines.flow.map
 import java.io.IOException
 
 private val Context.jarvisDataStore by preferencesDataStore(name = "jarvis")
+
 data class DriveFolder(val id: String, val name: String)
 
-data class Settings(val midnight: Boolean = false, val sensitivity: Float = 1f, val haptics: Boolean = true,
+/**
+ * [controlMode]: "wheel" = ruota e tasti, "buttons" = solo tasti (la rotazione è disattivata).
+ * [playerWheel]: cosa fa la rotazione nella schermata del lettore, "track" = cambia brano, "seek" = cerca nel brano.
+ * [hapticLevel]: 0 spento, 1 leggero, 2 normale, 3 forte.
+ */
+data class Settings(val midnight: Boolean = false, val sensitivity: Float = 1f, val hapticLevel: Int = 2,
     val driveEmail: String = "", val sort: String = "Titolo", val cacheMb: Int = 256,
-    val driveFolders: List<DriveFolder> = emptyList())
+    val driveFolders: List<DriveFolder> = emptyList(), val controlMode: String = "wheel",
+    val playerWheel: String = "track", val spotifyClientId: String = "")
 
 class Preferences(context: Context) {
     private val store = context.jarvisDataStore
     companion object {
         val midnight = booleanPreferencesKey("midnight")
         val sensitivity = floatPreferencesKey("sensitivity")
+        /** Chiave storica on/off; resta per leggere la scelta fatta prima dei livelli di vibrazione. */
         val haptics = booleanPreferencesKey("haptics")
+        val hapticLevel = intPreferencesKey("haptic_level")
+        val controlMode = stringPreferencesKey("control_mode")
+        val playerWheel = stringPreferencesKey("player_wheel")
+        val spotifyClientId = stringPreferencesKey("spotify_client_id")
         val email = stringPreferencesKey("drive_email")
         val sort = stringPreferencesKey("sort")
         val cache = intPreferencesKey("cache_mb")
@@ -39,8 +51,20 @@ class Preferences(context: Context) {
         val repeat = intPreferencesKey("repeat")
     }
     val data = store.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }
-    val settings = data.map { Settings(it[midnight] ?: false, it[sensitivity] ?: 1f, it[haptics] ?: true,
-        it[email] ?: "", it[sort] ?: "Titolo", it[cache] ?: 256, decodeFolders(it[driveFolders])) }
+    val settings = data.map { prefs ->
+        Settings(
+            midnight = prefs[midnight] ?: false,
+            sensitivity = prefs[sensitivity] ?: 1f,
+            hapticLevel = (prefs[hapticLevel] ?: if (prefs[haptics] == false) 0 else 2).coerceIn(0, 3),
+            driveEmail = prefs[email] ?: "",
+            sort = prefs[sort] ?: "Titolo",
+            cacheMb = prefs[cache] ?: 256,
+            driveFolders = decodeFolders(prefs[driveFolders]),
+            controlMode = prefs[controlMode] ?: "wheel",
+            playerWheel = prefs[playerWheel] ?: "track",
+            spotifyClientId = prefs[spotifyClientId] ?: ""
+        )
+    }
     suspend fun <T> set(key: androidx.datastore.preferences.core.Preferences.Key<T>, value: T) { store.edit { it[key] = value } }
     suspend fun savePlayback(ids: List<String>, index: Int, pos: Long, shuffled: Boolean, repeated: Int) {
         store.edit {

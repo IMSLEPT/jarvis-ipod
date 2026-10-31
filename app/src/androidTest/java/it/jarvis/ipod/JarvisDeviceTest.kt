@@ -36,6 +36,9 @@ class JarvisDeviceTest {
     @Test fun wheelNavigatesAndThemePersists() {
         runBlocking { app.preferences.set(Preferences.midnight, false) }
         compose.waitForIdle()
+        // L'app parte dalla schermata iniziale: il tasto centrale entra nel menu.
+        compose.onNodeWithContentDescription("Seleziona").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("click-wheel").performTouchInput {
             val r = width * .40f
             down(Offset(center.x + r, center.y))

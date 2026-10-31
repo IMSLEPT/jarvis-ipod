@@ -9,7 +9,10 @@ import kotlin.math.hypot
 class WheelAccumulator(var sensitivity: Float = 1f) {
     private var previous: Double? = null
     private var accumulated = 0.0
-    fun begin(x: Float, y: Float) { previous = atan2(y.toDouble(), x.toDouble()); accumulated = 0.0 }
+    /** Rotazione totale dall'inizio del gesto in radianti, positiva in senso orario; serve all'animazione della ruota. */
+    var total = 0.0
+        private set
+    fun begin(x: Float, y: Float) { previous = atan2(y.toDouble(), x.toDouble()); accumulated = 0.0; total = 0.0 }
     fun move(x: Float, y: Float): Int {
         val current = atan2(y.toDouble(), x.toDouble())
         val old = previous ?: run { begin(x, y); return 0 }
@@ -19,12 +22,13 @@ class WheelAccumulator(var sensitivity: Float = 1f) {
         if (delta < -PI) delta += 2 * PI
         if (abs(delta) > PI / 3) { accumulated = 0.0; return 0 } // reject discontinuous jumps
         accumulated += delta
+        total += delta
         val step = PI / 12 / sensitivity.coerceIn(0.5f, 2f)
         val count = (accumulated / step).toInt()
         accumulated -= count * step
         return count
     }
-    fun end() { previous = null; accumulated = 0.0 }
+    fun end() { previous = null; accumulated = 0.0; total = 0.0 }
     companion object {
         fun onRing(x: Float, y: Float, radius: Float): Boolean = hypot(x, y) in (radius * .40f)..radius
         fun button(x: Float, y: Float, radius: Float): String {

@@ -53,4 +53,13 @@ class WheelAccumulatorTest {
         assertEquals("previous", WheelAccumulator.button(-80f, 0f, 100f))
         assertEquals("play", WheelAccumulator.button(0f, 80f, 100f))
     }
+    @Test fun totalFollowsDirectionAndResets() {
+        val wheel = WheelAccumulator(); wheel.begin(100f, 0f)
+        val q = point(20.0); wheel.move(q.first, q.second)
+        assertEquals(20.0 * PI / 180, wheel.total, 1e-3)
+        val r = point(5.0); wheel.move(r.first, r.second)
+        assertEquals(5.0 * PI / 180, wheel.total, 1e-3)
+        wheel.end()
+        assertEquals(0.0, wheel.total, 0.0)
+    }
 }
