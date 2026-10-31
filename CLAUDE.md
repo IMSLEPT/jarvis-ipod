@@ -67,7 +67,7 @@ La consegna iniziale del 28 ottobre 2026 ha superato build, 6 test JVM, Lint (0 
 
 È implementato con Google Identity AuthorizationClient e Drive API v3, scope `drive.readonly`, necessario per esplorare file esistenti e leggerne i contenuti. La configurazione richiede un client OAuth Android associato a package e SHA-1 della firma, non un client secret nell’app. Le istruzioni sono nel README.
 
-L’elenco delle cartelle musicali consentite è salvato in DataStore (`drive_folders`) ed è una restrizione lato app: il token resta `drive.readonly` sull’intero account. Il menu Drive parte da quell’elenco; `drivepick` sfoglia Drive solo per sceglierne di nuove (senza salvare brani) e la ricerca è limitata alla cartella aperta. Questa modifica non è stata compilata né provata (SDK Android non raggiungibile nella sessione di sviluppo): compilare e verificare prima di rilasciare.
+L’elenco delle cartelle musicali consentite è salvato in DataStore (`drive_folders`) ed è una restrizione lato app: il token resta `drive.readonly` sull’intero account. Il menu Drive parte da quell’elenco; `drivepick` sfoglia Drive solo per sceglierne di nuove (senza salvare brani) e la ricerca è limitata alla cartella aperta. La modifica compila e supera test JVM e Lint su GitHub Actions (ottobre 2026), ma non è stata provata su telefono né con un account Google.
 
 Accesso reale, consenso, cartelle remote, streaming e download con un account Google non sono stati verificati. Il test `drive://` offline non prova OAuth o rete. I metadati cloud attuali derivano dal nome del file e dalla cartella; non vengono estratti ID3/copertine remote. I download richiedono il processo attivo e non sono job WorkManager persistenti.
 
