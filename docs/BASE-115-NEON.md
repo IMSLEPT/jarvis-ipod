@@ -2,7 +2,7 @@
 
 La base completa è il commit **7adfd7d1364f4a55e04c359279d058f618d74d06**, ramo `drive-cartelle-scelte`, build **115**. Il relativo APK di GitHub Actions è identico byte per byte all'APK `app-debug.apk` allegato dal proprietario: SHA-256 `1102878644d1f312fb708a5ae922e2b1c73ac4da6909cd3237621609e4fee24d`.
 
-Sono mantenuti i file originali dell'icona adattiva, senza ritagli, ridimensionamenti, rigenerazioni o sostituzioni. Tutte le risorse e il manifest sono identici a quella base. Rimangono i suoi aggiornamenti a grafica, comandi, vibrazione, cartelle Drive, Spotify App Remote e backup delle impostazioni. Le precedenti Release 1.1.1 erano partite dalla base sbagliata e non sono il riferimento di questa consegna.
+Unica eccezione richiesta dal proprietario il 3 novembre 2026: i due PNG dell'icona adattiva (`ic_launcher_background.png` e `ic_launcher_foreground.png`) sono sostituiti dalla nuova icona (robot con iPod), a 648 px = 108 dp con tutto il disegno entro la zona sicura di 66 dp e sfondo bianco uniforme; il confronto del workflow li esclude. Tutte le altre risorse e il manifest sono identici a quella base. Rimangono i suoi aggiornamenti a grafica, comandi, vibrazione, cartelle Drive, Spotify App Remote e backup delle impostazioni. Le precedenti Release 1.1.1 erano partite dalla base sbagliata e non sono il riferimento di questa consegna.
 
 Le sole modifiche funzionali aggiunte sono:
 - Alone neon multicolore continuo sulla ruota e sui tasti, che pulsa con i bassi e l'intensità dei campioni del lettore interno e con il volume multimediale del telefono; reagisce anche a rotazione e pressioni. Il disegno esterno è limitato all'area sotto il display. Le animazioni e i comandi già esistenti sono mantenuti.
